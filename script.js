@@ -12,6 +12,7 @@ class Shape {
         x = 0;
         y = 0;
         constructor(type=ENUM.RECTANGLE,x=0,y=0,w=50,h=50) {
+                this.name = type==ENUM.RECTANGLE?"MyRect":"MyOval";
                 this.type = type;
                 this.x = x;
                 this.y = y;
@@ -192,8 +193,10 @@ class Interface {
 class GUI {
         interface = undefined;
         selectedObject = "";
+        selectedShape = -1;
         objectsSection = undefined; // DOM div
-        functionsSection = undefined; // DOM div
+        functionsSection = []; // [DOM div]
+        shapesSection = undefined; // DOM div
         currentFrameText = undefined; // DOM p|DOM span
         selectedObjectText = undefined; // DOM p|DOM span
         speed = 0.2;
@@ -207,27 +210,57 @@ class GUI {
                 deselect.textContent = "Deselect";
                 deselect.addEventListener("click",()=>{
                         this.selectedObject = "";
-                        this.selectedObjectText.textContent = "";
+                        this.selectedShape = -1;
+                        this.updateObjects();
+                        this.updateObjectSelectionText();
+                });
+                let deselectShape = document.createElement("button");
+                deselectShape.textContent = "Deselect";
+                deselectShape.addEventListener("click",()=>{
+                        this.selectedShape = -1;
+                        this.updateObjectSelectionText();
                 });
                 this.objectsSection.innerHTML = '';
+                this.shapesSection.innerHTML = '';
+                this.shapesSection.style.display = "none";
+                this.objectsSection.style.display = "none";
                 this.objectsSection.appendChild(deselect);
+                this.shapesSection.appendChild(deselectShape);
 
                 const sel = this.interface.frame;
                 const frame = this.interface.renderer.frames[sel];
 
+                if (Object.keys(frame).length<1) return;
+                this.objectsSection.style.display = "flex";
                 for (let objectName in frame) {
                         const btn = document.createElement("button");
                         btn.textContent = objectName;
                         btn.addEventListener("click",()=>{
                                 this.selectedObject = btn.textContent;
-                                this.selectedObjectText.textContent = this.selectedObject;
+                                this.updateObjectSelectionText();
+                                this.updateObjects();
                         });
                         this.objectsSection.appendChild(btn)
+                }
+
+                if (this.selectedObject === "") return;
+                this.shapesSection.style.display = "flex";
+                let i = 0;
+                for (let shape of frame[this.selectedObject].shapes) {
+                        const btn = document.createElement("button");
+                        btn.textContent = shape.name + `(${i})`;
+                        let copy = i;
+                        btn.addEventListener("click",()=>{
+                                this.selectedShape = copy;
+                                this.updateObjectSelectionText();
+                        })
+                        this.shapesSection.appendChild(btn);
+                        i++;
                 }
         }
         render() {
                 this.interface.render();
-                this.currentFrameText.textContent = this.interface.frame;
+                this.currentFrameText.textContent = "Frame " + this.interface.frame;
                 this.updateObjects();
         }
         newObject(
@@ -256,16 +289,16 @@ class GUI {
 
                 delete frames[interfaceFrame][this.selectedObject];
                 this.selectedObject = "";
-                this.selectedObjectText.textContent = "";
+                this.updateObjectSelectionText();
 
                 this.interface.render();
                 this.updateObjects();
         }
-        newFunction(name,func=this.newObject) {
+        newFunction(name,func=this.newObject,idx=0) {
                 const f = document.createElement("button");
                 f.textContent = name;
                 f.addEventListener("click",func);
-                this.functionsSection.appendChild(f);
+                this.functionsSection[idx].appendChild(f);
         }
         modifySelectedAttr(config) {
                 if (this.selectedObject === "") return;
@@ -276,6 +309,18 @@ class GUI {
 
                 this.interface.render();
         }
+        updateObjectSelectionText() {
+                if (this.selectedObject === "") {
+                        this.selectedObjectText.textContent = "No Objects Selected!";
+                        return;
+                }
+                if (this.selectedShape < 0) {
+                        this.selectedObjectText.textContent = this.selectedObject;
+                        return;
+                }
+                const obj = this.interface.renderer.frames[this.interface.frame][this.selectedObject];
+                this.selectedObjectText.textContent = `${this.selectedObject}>${obj.shapes[this.selectedShape].name}`;
+        }
 }
 
 document.body.style.backgroundColor = "gainsboro";
@@ -285,12 +330,18 @@ const i = new Interface(renderer);
 const gui = new GUI(i);
 
 const objects = document.createElement("div");
-const functions = document.createElement("div");
+const functions = [
+        document.createElement("div"), // Frame or Animation Related
+        document.createElement("div"), // Object Related
+        document.createElement("div") // Shape Related
+];
+const shapes = document.createElement("div");
 
 function styleContainer(dom) {
         dom.style.display = "flex";
         dom.style.flexDirection = "row";
         dom.style.maxWidth = "512px";
+        dom.style.minHeight = "48px";
         dom.style.height = "48px";
         dom.style.overflowX = "scroll";
         dom.addEventListener("wheel",e=>{
@@ -300,14 +351,17 @@ function styleContainer(dom) {
         });
 }
 styleContainer(objects);
-styleContainer(functions);
+functions.forEach(div=>styleContainer(div));
+styleContainer(shapes);
 
 gui.objectsSection = objects;
+gui.shapesSection = shapes;
 gui.updateObjects();
 gui.functionsSection = functions;
-gui.newFunction("New Rect",()=>gui.newObject());
-gui.newFunction("New Oval",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0));
-gui.newFunction("Delete Selected",()=>gui.removeSelected());
+gui.newFunction("New Rect",()=>gui.newObject(),1);
+gui.newFunction("New Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
+gui.newFunction("New Oval",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0),1);
+gui.newFunction("Delete Selected",()=>gui.removeSelected(),1);
 gui.newFunction("Update Render",()=>gui.interface.render())
 gui.newFunction("Move By",()=>{
         if (gui.selectedObject === "") return;
@@ -321,7 +375,7 @@ gui.newFunction("Move By",()=>{
         obj.y += Number(isNaN(inputY)?0:Number(inputY));
 
         gui.interface.render();
-});
+},1);
 gui.newFunction("Move To",()=>{
         if (gui.selectedObject === "") return;
         let inputX = prompt("Move X to...");
@@ -330,7 +384,7 @@ gui.newFunction("Move To",()=>{
         inputY = isNaN(inputY)?0:Number(inputY)
         
         gui.modifySelectedAttr({x:inputX,y:inputY})
-});
+},1);
 gui.newFunction("Go To Previous Frame",()=>{
         if (gui.interface.frame == 0) return;
         gui.interface.frame--;
@@ -361,16 +415,16 @@ gui.newFunction("Play/Stop",()=>{
 });
 gui.newFunction("Copy Frame",()=>{
         gui.interface.copyFrame();
-})
+});
 gui.newFunction("Cut Frame",()=>{
         gui.interface.cutFrame();
         gui.render();
-})
+});
 gui.newFunction("Paste Frame",()=>{
         if (Object.keys(gui.interface.clipboard).length<1) return;
         gui.interface.pasteFrame();
         gui.render();
-})
+});
 gui.newFunction("Rename Selected",()=>{
         if (gui.selectedObject === "") return;
         let input = prompt("Enter a new name!");
@@ -379,7 +433,82 @@ gui.newFunction("Rename Selected",()=>{
         gui.selectedObject = input;
         gui.render();
         gui.selectedObjectText.textContent = gui.selectedObject;
-})
+},1);
+gui.newFunction("New Rect Shape",()=>{
+        if (gui.selectedObject === "") return;
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes.push(new Shape(
+                ENUM.RECTANGLE,
+                0,0,
+                50,50
+        ));
+        gui.render();
+},2);
+gui.newFunction("New Oval Shape",()=>{
+        if (gui.selectedObject === "") return;
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes.push(new Shape(
+                ENUM.OVAL,
+                0,0,
+                50,50
+        ));
+        gui.render();
+},2);
+gui.newFunction("Size By",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
+        let inputW = prompt("Size Shape Width By...");
+        inputW = isNaN(inputW)?0:inputW;
+        let inputH = prompt("Size Shape Height By...");
+        inputH = isNaN(inputH)?0:inputH;
+
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes[gui.selectedShape].w += inputW;
+        frame[gui.selectedObject].shapes[gui.selectedShape].h += inputH;
+        gui.render();
+},2);
+gui.newFunction("Size To",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
+        let inputW = prompt("Size Shape Width To...");
+        inputW = isNaN(inputW)?0:Number(inputW);
+        let inputH = prompt("Size Shape Height To...");
+        inputH = isNaN(inputH)?0:Number(inputH);
+
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes[gui.selectedShape].w = inputW;
+        frame[gui.selectedObject].shapes[gui.selectedShape].h = inputH;
+        gui.render();
+},2);
+gui.newFunction("Shift By",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
+        let inputW = prompt("Shift Shape X By...");
+        inputW = isNaN(inputW)?0:Number(inputW);
+        let inputH = prompt("Shift Shape Y By...");
+        inputH = isNaN(inputH)?0:Number(inputH);
+
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes[gui.selectedShape].x += inputW;
+        frame[gui.selectedObject].shapes[gui.selectedShape].y += inputH;
+        gui.render();
+},2);
+gui.newFunction("Shift To",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
+        let inputW = prompt("Shift Shape X To...");
+        inputW = isNaN(inputW)?0:inputW;
+        let inputH = prompt("Shift Shape Y To...");
+        inputH = isNaN(inputH)?0:inputH;
+
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes[gui.selectedShape].x = inputW;
+        frame[gui.selectedObject].shapes[gui.selectedShape].y = inputH;
+        gui.render();
+},2);
+gui.newFunction("Delete Selected",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
+        gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject].shapes.splice(gui.selectedShape,1);
+        gui.selectedShape = -1;
+        
+        gui.render()
+},2);
 
 document.body.style.display = "flex";
 document.body.style.flexDirection = "column";
@@ -389,13 +518,28 @@ const currentFrame = document.createElement("span");
 const selectedObject = document.createElement("span");
 
 gui.currentFrameText = currentFrame;
-currentFrame.textContent = gui.interface.frame;
+currentFrame.textContent = "Frame " + gui.interface.frame;
 gui.selectedObjectText = selectedObject;
-selectedObject.textContent = gui.selectedObject;
+selectedObject.textContent = "No Selected Objects!";
+
+const sectionContainer = document.createElement("div");
+sectionContainer.style.display = "flex";
+sectionContainer.style.flexDirection = "column";
+sectionContainer.style.minHeight = "200px";
+sectionContainer.style.maxHeight = "200px";
+sectionContainer.style.overflowY = "scroll";
+sectionContainer.addEventListener("wheel",e=>{
+        if (e.deltaY==0) return;
+        e.preventDefault();
+        sectionContainer.scrollTop += e.deltaY;
+});
+
 
 $("body").ready(()=>{
-        document.body.appendChild(functions);
-        document.body.appendChild(objects);
+        functions.forEach(div=>sectionContainer.appendChild(div));
+        sectionContainer.appendChild(objects);
+        sectionContainer.appendChild(shapes);
+        document.body.appendChild(sectionContainer);
         document.body.appendChild(canvas);
         document.body.appendChild(currentFrame)
         document.body.appendChild(selectedObject)
