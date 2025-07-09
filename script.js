@@ -1,6 +1,3 @@
-// So I'm thinking, before implementing UI features we should create some type
-// of interface by running user functions in a console.
-
 const ENUM = {
         RECTANGLE: 0,
         OVAL: 1
@@ -25,6 +22,7 @@ class Object_ {
         shapes = []; // : Shape
         x = 0;
         y = 0;
+        visible = true;
         constructor(shapes=[],x=0,y=0) {
                 this.shapes = shapes;
                 this.x = x;
@@ -32,7 +30,7 @@ class Object_ {
         }
 }
 class ObjectSequence {
-        frames = []; // : Object
+        frames = [new Object_(new Shape(),0,0)]; // : Object
         state = 0;
         x = 0;
         y = 0;
@@ -66,20 +64,20 @@ class Renderer {
                         func[shape.type](shapeX,shapeY,shape.w,shape.h);
                         ctx.fill(path);
                 }
-                const drawObject = (object) => {
-                        if (object instanceof ObjectSequence) {
-                                drawObject(object.frames[object.state]);
+                const drawObject = (object,offsetX=0,offsetY=0) => {
+                        if (object.visible == false) return;
+                        if (!object.shapes) {
+                                drawObject(object.frames[object.state],object.x,object.y);
                                 return;
                         }
-
                         let objW = 0;
                         let objH = 0;
                         for (let shape of object.shapes) {
-                                if (shape.w > objW) objW = shape.w;
-                                if (shape.h > objH) objH = shape.h;
+                                objW = Math.max(shape.w,objW,shape.x);
+                                objH = Math.max(shape.h,objH,shape.y);
                         }
-                        let objX = object.x + ((this.canvas.width/2)-(objW/2));
-                        let objY = object.y + ((this.canvas.height/2)-(objH/2));
+                        let objX = (object.x + ((this.canvas.width/2)-(objW/2)))+offsetX;
+                        let objY = (object.y + ((this.canvas.height/2)-(objH/2)))+offsetY;
 
                         for (let shape of object.shapes) {
                                 drawShape(shape,objX,objY);
@@ -138,6 +136,8 @@ class Renderer {
 class Interface {
         renderer = undefined;
         clipboard = {};
+        objectClipboard = {};
+        shapeClipboard = {};
         frame = 0;
 
         constructor(renderer) {
@@ -244,9 +244,15 @@ class GUI {
                 }
 
                 if (this.selectedObject === "") return;
+
+                const obj = frame[this.selectedObject]
+                let shapes = obj.shapes
+                if (!obj.shapes) {
+                        shapes = obj.frames[obj.state].shapes
+                };
                 this.shapesSection.style.display = "flex";
                 let i = 0;
-                for (let shape of frame[this.selectedObject].shapes) {
+                for (let shape of shapes) {
                         const btn = document.createElement("button");
                         btn.textContent = shape.name + `(${i})`;
                         let copy = i;
@@ -298,6 +304,7 @@ class GUI {
                 const f = document.createElement("button");
                 f.textContent = name;
                 f.addEventListener("click",func);
+                f.style.minHeight = "48px";
                 this.functionsSection[idx].appendChild(f);
         }
         modifySelectedAttr(config) {
@@ -314,12 +321,12 @@ class GUI {
                         this.selectedObjectText.textContent = "No Objects Selected!";
                         return;
                 }
+                const obj = this.interface.renderer.frames[this.interface.frame][this.selectedObject];
                 if (this.selectedShape < 0) {
-                        this.selectedObjectText.textContent = this.selectedObject;
+                        this.selectedObjectText.textContent = `${this.selectedObject}${obj.state!==undefined?": "+obj.state:""}`;
                         return;
                 }
-                const obj = this.interface.renderer.frames[this.interface.frame][this.selectedObject];
-                this.selectedObjectText.textContent = `${this.selectedObject}>${obj.shapes[this.selectedShape].name}`;
+                this.selectedObjectText.textContent = `${this.selectedObject}${obj.state!==undefined?": "+this.selectedObject.state:""}>${obj.shapes?obj.shapes[this.selectedShape].name:obj.frames[obj.state].shapes[this.selectedShape].name}`;
         }
 }
 
@@ -340,10 +347,11 @@ const shapes = document.createElement("div");
 function styleContainer(dom) {
         dom.style.display = "flex";
         dom.style.flexDirection = "row";
-        dom.style.maxWidth = "512px";
+        dom.style.maxWidth = (window.innerWidth/2)+"px";
         dom.style.minHeight = "48px";
         dom.style.height = "48px";
         dom.style.overflowX = "scroll";
+        dom.style.marginBottom = "5px";
         dom.addEventListener("wheel",e=>{
                 if (e.deltaY==0) return;
                 e.preventDefault();
@@ -358,11 +366,133 @@ gui.objectsSection = objects;
 gui.shapesSection = shapes;
 gui.updateObjects();
 gui.functionsSection = functions;
+
+const imgCanvas = document.createElement("img");
+const imgObject = document.createElement("img");
+const imgShape = document.createElement("img");
+imgCanvas.src = "./canvas.png";
+imgObject.src = "./object.png";
+imgShape.src = "./shape.png";
+[imgCanvas,imgObject,imgShape].forEach(i=>{
+        i.style.marginRight = "10px";
+        i.style.width = "32px";
+        i.style.height = "32px";
+        i.style.alignSelf = "center";
+});
+
+gui.functionsSection[0].appendChild(imgCanvas);
+gui.functionsSection[1].appendChild(imgObject);
+gui.functionsSection[2].appendChild(imgShape);
+
 gui.newFunction("New Rect",()=>gui.newObject(),1);
 gui.newFunction("New Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
 gui.newFunction("New Oval",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0),1);
 gui.newFunction("Delete Selected",()=>gui.removeSelected(),1);
-gui.newFunction("Update Render",()=>gui.interface.render())
+gui.newFunction("Copy Selected",()=>{
+        if (gui.selectedObject === "") {
+                gui.interface.objectClipboard = {};
+                return;
+        }
+        let frame = gui.interface.renderer.frames[gui.interface.frame];
+        gui.interface.objectClipboard = structuredClone(frame[gui.selectedObject]);
+        gui.interface.objectClipboard.name = gui.selectedObject
+},1);
+gui.newFunction("Paste Object",()=>{
+        if (Object.keys(gui.interface.objectClipboard).length<1) return;
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        if (frame[gui.interface.objectClipboard.name]) {
+                gui.interface.objectClipboard.name += "Copy";
+        }
+
+        frame[gui.interface.objectClipboard.name] = gui.interface.objectClipboard
+        delete frame[gui.interface.objectClipboard.name].name;
+        gui.render();
+},1);
+gui.newFunction("Import Project",()=>{
+        gui.interface.frame = 0;
+
+        const f = document.createElement("input");
+        f.type = "file";
+
+        f.addEventListener("change",e=>{
+                const file = e.target.files[0];
+                if (!file) return;
+                const fReader = new FileReader();
+                fReader.onload=function(e){
+                        const project = JSON.parse(e.target.result);
+                        document.title = `GoodForYou v${ver}: Editing ${project.projectName}`;
+                        gui.interface.renderer.frames = project.frames;
+                        gui.render();
+                }
+                fReader.readAsText(file);
+        })
+        
+        f.click();
+});
+gui.newFunction("New Sequence Object",()=>{
+        let name = "MyObjectSequence";
+        while (gui.interface.renderer.frames[gui.interface.frame][name]) name += "Copy";
+        gui.interface.renderer.frames[gui.interface.frame][name] = {};
+        gui.interface.renderer.frames[gui.interface.frame][name].state = 0;
+        gui.interface.renderer.frames[gui.interface.frame][name].frames = [
+                new Object_([],0,0)
+        ];
+        gui.interface.renderer.frames[gui.interface.frame][name].x = 0;
+        gui.interface.renderer.frames[gui.interface.frame][name].y = 0;
+        gui.render();
+},1);
+gui.newFunction("Paste Into Sequence State",()=>{
+        if (gui.selectedObject === "") return;
+        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        if (obj.shapes) return;
+        obj.frames[obj.state] = gui.interface.objectClipboard;
+        gui.render();
+},1);
+gui.newFunction("Set Sequence State",()=>{
+        if (gui.selectedObject === "") return;
+        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        if (obj.shapes) return;
+        obj.state = Number(prompt("Set State To..."));
+        gui.render();
+},1);
+gui.newFunction("Toggle Selected Visibility",()=>{
+        if (gui.selectedObject === "") return;
+        const obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        if (obj.visible === undefined) {
+                const objFS = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+                obj.frames[obj.state].visible = !(obj.frames[obj.state].visible);
+        }
+        obj.visible = !(obj.visible);
+        gui.render();
+},1);
+gui.newFunction("Create New State For Selected Sequence",()=>{
+        if (gui.selectedObject === "") return;
+        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        if (obj.shapes) return;
+
+        obj.frames.push(new Object_([],0,0));
+        obj.state = obj.frames.length-1;
+        gui.render();
+},1);
+gui.newFunction("Export Project (.json)",()=>{
+        let input = prompt("Enter a name!");
+        let jsonFile = JSON.stringify(
+                {
+                        projectName: input!==""?input:"My Project!",
+                        frames: gui.interface.renderer.frames
+                }
+        );
+        const blob = new Blob([jsonFile],{type:"text/plain"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const reg = /[^a-z0-9_]/gi;
+        a.download = `${input.replaceAll(reg,"")}.json`;
+
+        a.click();
+        a.remove();
+});
+gui.newFunction("Update Render",()=>gui.interface.render());
 gui.newFunction("Move By",()=>{
         if (gui.selectedObject === "") return;
         const frames = gui.interface.renderer.frames;
@@ -370,9 +500,9 @@ gui.newFunction("Move By",()=>{
         const obj = frame[gui.selectedObject];
 
         let inputX = prompt("Move X by...");
-        obj.x += Number(isNaN(inputX)?0:Number(inputX));
+        obj.x += isNaN(inputX)?0:Number(inputX);
         let inputY = prompt("Move Y by...");
-        obj.y += Number(isNaN(inputY)?0:Number(inputY));
+        obj.y += isNaN(inputY)?0:Number(inputY);
 
         gui.interface.render();
 },1);
@@ -416,14 +546,13 @@ gui.newFunction("Play/Stop",()=>{
 gui.newFunction("Copy Frame",()=>{
         gui.interface.copyFrame();
 });
-gui.newFunction("Cut Frame",()=>{
-        gui.interface.cutFrame();
-        gui.render();
-});
 gui.newFunction("Paste Frame",()=>{
         if (Object.keys(gui.interface.clipboard).length<1) return;
         gui.interface.pasteFrame();
         gui.render();
+});
+gui.newFunction("Remove Frame",()=>{
+        gui.interface.deleteFrame();
 });
 gui.newFunction("Rename Selected",()=>{
         if (gui.selectedObject === "") return;
@@ -437,7 +566,7 @@ gui.newFunction("Rename Selected",()=>{
 gui.newFunction("New Rect Shape",()=>{
         if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
-        frame[gui.selectedObject].shapes.push(new Shape(
+        (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
                 ENUM.RECTANGLE,
                 0,0,
                 50,50
@@ -447,7 +576,7 @@ gui.newFunction("New Rect Shape",()=>{
 gui.newFunction("New Oval Shape",()=>{
         if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
-        frame[gui.selectedObject].shapes.push(new Shape(
+        (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
                 ENUM.OVAL,
                 0,0,
                 50,50
@@ -457,9 +586,9 @@ gui.newFunction("New Oval Shape",()=>{
 gui.newFunction("Size By",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         let inputW = prompt("Size Shape Width By...");
-        inputW = isNaN(inputW)?0:inputW;
+        inputW = isNaN(inputW)?0:Number(inputW);
         let inputH = prompt("Size Shape Height By...");
-        inputH = isNaN(inputH)?0:inputH;
+        inputH = isNaN(inputH)?0:Number(inputH);
 
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         frame[gui.selectedObject].shapes[gui.selectedShape].w += inputW;
@@ -493,14 +622,37 @@ gui.newFunction("Shift By",()=>{
 gui.newFunction("Shift To",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         let inputW = prompt("Shift Shape X To...");
-        inputW = isNaN(inputW)?0:inputW;
+        inputW = isNaN(inputW)?0:Number(inputW);
         let inputH = prompt("Shift Shape Y To...");
-        inputH = isNaN(inputH)?0:inputH;
+        inputH = isNaN(inputH)?0:Number(inputH);
 
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         frame[gui.selectedObject].shapes[gui.selectedShape].x = inputW;
         frame[gui.selectedObject].shapes[gui.selectedShape].y = inputH;
         gui.render();
+},2);
+gui.newFunction("Copy Selected",()=>{
+        if (gui.selectedShape < 0) {
+                gui.interface.shapeClipboard = {};
+                return;
+        }
+        let frame = gui.interface.renderer.frames[gui.interface.frame];
+        gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].shapes[gui.selectedShape]);
+},2);
+gui.newFunction("Paste Shape",()=>{
+        if (Object.keys(gui.interface.shapeClipboard).length<1) return;
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
+        gui.render();
+},2);
+gui.newFunction("Rename Selected",()=>{
+        if (gui.selectedShape < 0) return;
+        let input = prompt("Enter a new name!");
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        const object = frame[gui.selectedObject];
+        object.shapes[gui.selectedShape].name = input;
+        gui.render();
+        gui.updateObjectSelectionText();
 },2);
 gui.newFunction("Delete Selected",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
@@ -522,28 +674,55 @@ currentFrame.textContent = "Frame " + gui.interface.frame;
 gui.selectedObjectText = selectedObject;
 selectedObject.textContent = "No Selected Objects!";
 
+const horizontalContainer = document.createElement("div");
+horizontalContainer.style.display = "flex";
+horizontalContainer.style.flexDirection = "row";
+horizontalContainer.style.minWidth = window.innerWidth+"px";
+const objShapeContainer = document.createElement("div");
 const sectionContainer = document.createElement("div");
-sectionContainer.style.display = "flex";
-sectionContainer.style.flexDirection = "column";
-sectionContainer.style.minHeight = "200px";
-sectionContainer.style.maxHeight = "200px";
-sectionContainer.style.overflowY = "scroll";
-sectionContainer.addEventListener("wheel",e=>{
-        if (e.deltaY==0) return;
-        e.preventDefault();
-        sectionContainer.scrollTop += e.deltaY;
-});
+sectionContainer.style.marginRight = "10px";
 
+function styleContainers(dom) {
+        dom.style.display = "flex";
+        dom.style.flexDirection = "column";
+        dom.style.minHeight = "200px";
+        dom.style.maxHeight = "200px";
+        dom.style.overflowY = "scroll";
+        dom.addEventListener("wheel",e=>{
+                if (e.deltaY==0) return;
+                e.preventDefault();
+                dom.scrollTop += e.deltaY;
+        });
+}
+[objShapeContainer,sectionContainer].forEach(e=>styleContainers(e));
 
-$("body").ready(()=>{
-        functions.forEach(div=>sectionContainer.appendChild(div));
-        sectionContainer.appendChild(objects);
-        sectionContainer.appendChild(shapes);
-        document.body.appendChild(sectionContainer);
+const editContainer = document.createElement("div");
+editContainer.style.display = "flex";
+editContainer.style.flexDirection = "column";
+editContainer.style.height = "0px";
+
+const about = document.createElement("button");
+about.textContent = "Notes & Credits";
+about.addEventListener("click",()=>{
+        alert("Created by Cookie/Biscgames\nAll icons by https://icons8.com/\n\nYou can report any bugs on my discord server: https://discord.gg/k6dptVBm\nOr open an issue: https://github.com/biscgames/goodforyou");
+})
+
+document.body.onload = ()=>{
+        document.body.appendChild(about);
         document.body.appendChild(canvas);
-        document.body.appendChild(currentFrame)
-        document.body.appendChild(selectedObject)
-});
+        document.body.appendChild(currentFrame);
+        document.body.appendChild(selectedObject);
+        functions.forEach(div=>sectionContainer.appendChild(div));
+        objShapeContainer.appendChild(objects);
+        objShapeContainer.appendChild(shapes);
+        horizontalContainer.appendChild(sectionContainer);
+        horizontalContainer.appendChild(objShapeContainer);
+        editContainer.appendChild(horizontalContainer)
+        document.body.appendChild(editContainer);
+        gui.render();
+};
 
 
 let JANITOR = false; // JANITOR prevents excessive debug logging
+const ver = "A2";
+document.title = `GoodForYou v${ver}`;
