@@ -382,11 +382,23 @@ gui.functionsSection[0].appendChild(imgCanvas);
 gui.functionsSection[1].appendChild(imgObject);
 gui.functionsSection[2].appendChild(imgShape);
 
-gui.newFunction("New Rect",()=>gui.newObject(),1);
-gui.newFunction("New Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
-gui.newFunction("New Oval",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0),1);
+gui.newFunction("+ Rect Object",()=>gui.newObject(),1);
+gui.newFunction("+ Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
+gui.newFunction("+ Oval Object",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0),1);
+gui.newFunction("+ Sequence Object",()=>{
+        let name = "MyObjectSequence";
+        while (gui.interface.renderer.frames[gui.interface.frame][name]) name += "Copy";
+        gui.interface.renderer.frames[gui.interface.frame][name] = {};
+        gui.interface.renderer.frames[gui.interface.frame][name].state = 0;
+        gui.interface.renderer.frames[gui.interface.frame][name].frames = [
+                new Object_([],0,0)
+        ];
+        gui.interface.renderer.frames[gui.interface.frame][name].x = 0;
+        gui.interface.renderer.frames[gui.interface.frame][name].y = 0;
+        gui.render();
+},1);
 gui.newFunction("Delete Selected",()=>gui.removeSelected(),1);
-gui.newFunction("Copy Selected",()=>{
+gui.newFunction("Copy",()=>{
         if (gui.selectedObject === "") {
                 gui.interface.objectClipboard = {};
                 return;
@@ -395,7 +407,7 @@ gui.newFunction("Copy Selected",()=>{
         gui.interface.objectClipboard = structuredClone(frame[gui.selectedObject]);
         gui.interface.objectClipboard.name = gui.selectedObject
 },1);
-gui.newFunction("Paste Object",()=>{
+gui.newFunction("Paste",()=>{
         if (Object.keys(gui.interface.objectClipboard).length<1) return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         if (frame[gui.interface.objectClipboard.name]) {
@@ -404,6 +416,29 @@ gui.newFunction("Paste Object",()=>{
 
         frame[gui.interface.objectClipboard.name] = gui.interface.objectClipboard
         delete frame[gui.interface.objectClipboard.name].name;
+        gui.render();
+},1);
+gui.newFunction("Paste > Sequence State",()=>{
+        if (gui.selectedObject === "") return;
+        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        if (obj.shapes) return;
+        obj.frames[obj.state] = gui.interface.objectClipboard;
+        gui.render();
+},1);
+gui.newFunction("Rename Selected",()=>{
+        if (gui.selectedObject === "") return;
+        let input = prompt("Enter a new name!");
+        gui.interface.renderer.frames[gui.interface.frame][input!==""?input:gui.selectedObject] = structuredClone(gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]);
+        delete gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        gui.selectedObject = input;
+        gui.render();
+        gui.selectedObjectText.textContent = gui.selectedObject;
+},1);
+gui.newFunction("Set Sequence State",()=>{
+        if (gui.selectedObject === "") return;
+        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
+        if (obj.shapes) return;
+        obj.state = Number(prompt("Set State To..."));
         gui.render();
 },1);
 gui.newFunction("Import Project",()=>{
@@ -427,33 +462,16 @@ gui.newFunction("Import Project",()=>{
         
         f.click();
 });
-gui.newFunction("New Sequence Object",()=>{
-        let name = "MyObjectSequence";
-        while (gui.interface.renderer.frames[gui.interface.frame][name]) name += "Copy";
-        gui.interface.renderer.frames[gui.interface.frame][name] = {};
-        gui.interface.renderer.frames[gui.interface.frame][name].state = 0;
-        gui.interface.renderer.frames[gui.interface.frame][name].frames = [
-                new Object_([],0,0)
-        ];
-        gui.interface.renderer.frames[gui.interface.frame][name].x = 0;
-        gui.interface.renderer.frames[gui.interface.frame][name].y = 0;
-        gui.render();
-},1);
-gui.newFunction("Paste Into Sequence State",()=>{
+gui.newFunction("Add New State > Sequence",()=>{
         if (gui.selectedObject === "") return;
         let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
         if (obj.shapes) return;
-        obj.frames[obj.state] = gui.interface.objectClipboard;
+
+        obj.frames.push(new Object_([],0,0));
+        obj.state = obj.frames.length-1;
         gui.render();
 },1);
-gui.newFunction("Set Sequence State",()=>{
-        if (gui.selectedObject === "") return;
-        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
-        if (obj.shapes) return;
-        obj.state = Number(prompt("Set State To..."));
-        gui.render();
-},1);
-gui.newFunction("Toggle Selected Visibility",()=>{
+gui.newFunction("Toggle Visibility",()=>{
         if (gui.selectedObject === "") return;
         const obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
         if (obj.visible === undefined) {
@@ -461,15 +479,6 @@ gui.newFunction("Toggle Selected Visibility",()=>{
                 obj.frames[obj.state].visible = !(obj.frames[obj.state].visible);
         }
         obj.visible = !(obj.visible);
-        gui.render();
-},1);
-gui.newFunction("Create New State For Selected Sequence",()=>{
-        if (gui.selectedObject === "") return;
-        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
-        if (obj.shapes) return;
-
-        obj.frames.push(new Object_([],0,0));
-        obj.state = obj.frames.length-1;
         gui.render();
 },1);
 gui.newFunction("Export Project (.json)",()=>{
@@ -490,7 +499,7 @@ gui.newFunction("Export Project (.json)",()=>{
         a.click();
         a.remove();
 });
-gui.newFunction("Update Render",()=>gui.interface.render());
+gui.newFunction("Update Canvas",()=>gui.interface.render());
 gui.newFunction("Move By",()=>{
         if (gui.selectedObject === "") return;
         const frames = gui.interface.renderer.frames;
@@ -513,17 +522,17 @@ gui.newFunction("Move To",()=>{
         
         gui.modifySelectedAttr({x:inputX,y:inputY})
 },1);
-gui.newFunction("Go To Previous Frame",()=>{
+gui.newFunction("< Frame",()=>{
         if (gui.interface.frame == 0) return;
         gui.interface.frame--;
         gui.render()
 });
-gui.newFunction("Go To Next Frame",()=>{
+gui.newFunction("Frame >",()=>{
         if (gui.interface.frame == gui.interface.renderer.frames.length-1) return;
         gui.interface.frame++;
         gui.render();
 });
-gui.newFunction("New Frame",()=>{
+gui.newFunction("+ Frame",()=>{
         gui.interface.createNewFrame();
         gui.render();
 });
@@ -549,19 +558,10 @@ gui.newFunction("Paste Frame",()=>{
         gui.interface.pasteFrame();
         gui.render();
 });
-gui.newFunction("Remove Frame",()=>{
+gui.newFunction("Delete Frame",()=>{
         gui.interface.deleteFrame();
 });
-gui.newFunction("Rename Selected",()=>{
-        if (gui.selectedObject === "") return;
-        let input = prompt("Enter a new name!");
-        gui.interface.renderer.frames[gui.interface.frame][input!==""?input:gui.selectedObject] = structuredClone(gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]);
-        delete gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
-        gui.selectedObject = input;
-        gui.render();
-        gui.selectedObjectText.textContent = gui.selectedObject;
-},1);
-gui.newFunction("New Rect Shape",()=>{
+gui.newFunction("+ Rect Shape",()=>{
         if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
@@ -571,7 +571,7 @@ gui.newFunction("New Rect Shape",()=>{
         ));
         gui.render();
 },2);
-gui.newFunction("New Oval Shape",()=>{
+gui.newFunction("+ Oval Shape",()=>{
         if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
@@ -580,6 +580,36 @@ gui.newFunction("New Oval Shape",()=>{
                 50,50
         ));
         gui.render();
+},2);
+gui.newFunction("Delete Selected",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
+        gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject].shapes.splice(gui.selectedShape,1);
+        gui.selectedShape = -1;
+        
+        gui.render()
+},2);
+gui.newFunction("Copy",()=>{
+        if (gui.selectedShape < 0) {
+                gui.interface.shapeClipboard = {};
+                return;
+        }
+        let frame = gui.interface.renderer.frames[gui.interface.frame];
+        gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].shapes[gui.selectedShape]);
+},2);
+gui.newFunction("Paste",()=>{
+        if (Object.keys(gui.interface.shapeClipboard).length<1) return;
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
+        gui.render();
+},2);
+gui.newFunction("Rename Selected",()=>{
+        if (gui.selectedShape < 0) return;
+        let input = prompt("Enter a new name!");
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        const object = frame[gui.selectedObject];
+        object.shapes[gui.selectedShape].name = input;
+        gui.render();
+        gui.updateObjectSelectionText();
 },2);
 gui.newFunction("Size By",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
@@ -628,36 +658,6 @@ gui.newFunction("Shift To",()=>{
         frame[gui.selectedObject].shapes[gui.selectedShape].x = inputW;
         frame[gui.selectedObject].shapes[gui.selectedShape].y = inputH;
         gui.render();
-},2);
-gui.newFunction("Copy Selected",()=>{
-        if (gui.selectedShape < 0) {
-                gui.interface.shapeClipboard = {};
-                return;
-        }
-        let frame = gui.interface.renderer.frames[gui.interface.frame];
-        gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].shapes[gui.selectedShape]);
-},2);
-gui.newFunction("Paste Shape",()=>{
-        if (Object.keys(gui.interface.shapeClipboard).length<1) return;
-        const frame = gui.interface.renderer.frames[gui.interface.frame];
-        frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
-        gui.render();
-},2);
-gui.newFunction("Rename Selected",()=>{
-        if (gui.selectedShape < 0) return;
-        let input = prompt("Enter a new name!");
-        const frame = gui.interface.renderer.frames[gui.interface.frame];
-        const object = frame[gui.selectedObject];
-        object.shapes[gui.selectedShape].name = input;
-        gui.render();
-        gui.updateObjectSelectionText();
-},2);
-gui.newFunction("Delete Selected",()=>{
-        if (gui.selectedObject === "" && gui.selectedShape < 0) return;
-        gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject].shapes.splice(gui.selectedShape,1);
-        gui.selectedShape = -1;
-        
-        gui.render()
 },2);
 
 document.body.style.display = "flex";
@@ -728,5 +728,5 @@ document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = false; // JANITOR prevents excessive debug logging
-const ver = "A2";
+const ver = "A2.1";
 document.title = `GoodForYou v${ver}`;
