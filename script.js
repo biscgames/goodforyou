@@ -351,6 +351,7 @@ function styleContainer(dom) {
         dom.style.minHeight = "48px";
         dom.style.height = "48px";
         dom.style.overflowX = "scroll";
+        dom.style.overflowY = "hidden";
         dom.style.marginBottom = "5px";
         dom.addEventListener("wheel",e=>{
                 if (e.deltaY==0) return;
@@ -358,9 +359,6 @@ function styleContainer(dom) {
                 dom.scrollLeft += e.deltaY;
         });
 }
-styleContainer(objects);
-functions.forEach(div=>styleContainer(div));
-styleContainer(shapes);
 
 gui.objectsSection = objects;
 gui.shapesSection = shapes;
@@ -707,21 +705,27 @@ about.addEventListener("click",()=>{
         alert("Created by Cookie/Biscgames\nAll icons by https://icons8.com/\n\nYou can report any bugs on my discord server: https://discord.gg/k6dptVBm\nOr open an issue: https://github.com/biscgames/goodforyou");
 })
 
-document.body.onload = ()=>{
+functions.forEach(div=>sectionContainer.appendChild(div));
+objShapeContainer.appendChild(objects);
+objShapeContainer.appendChild(shapes);
+horizontalContainer.appendChild(sectionContainer);
+horizontalContainer.appendChild(objShapeContainer);
+editContainer.appendChild(horizontalContainer)
+
+styleContainer(objects);
+functions.forEach(div=>styleContainer(div));
+styleContainer(shapes);
+const initializeBody = ()=>{
+        document.body.innerHTML = '';
         document.body.appendChild(about);
         document.body.appendChild(canvas);
         document.body.appendChild(currentFrame);
         document.body.appendChild(selectedObject);
-        functions.forEach(div=>sectionContainer.appendChild(div));
-        objShapeContainer.appendChild(objects);
-        objShapeContainer.appendChild(shapes);
-        horizontalContainer.appendChild(sectionContainer);
-        horizontalContainer.appendChild(objShapeContainer);
-        editContainer.appendChild(horizontalContainer)
         document.body.appendChild(editContainer);
         gui.render();
 };
-
+document.body.onload = initializeBody;
+window.addEventListener("resize",initializeBody);
 
 let JANITOR = false; // JANITOR prevents excessive debug logging
 const ver = "A2";
