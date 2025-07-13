@@ -93,7 +93,7 @@ class Renderer {
                         ctx.stroke(path);
 
                 }
-                const drawObject = (object,offsetX=0,offsetY=0,selected) => {
+                const drawObject = (object,offsetX=0,offsetY=0,selected,rotationOffset=0) => {
                         if (object.visible == false) return;
                         if (!object.rotation) object.rotation = 0;
                         if (!object.shapes && object.frames) {
@@ -101,9 +101,17 @@ class Renderer {
                                 return;
                         }
                         if (object.objects && !object.textContent) {
-                                for (let idx in object.objects) {
-                                        drawObject(object.objects[idx],object.x,object.y,selected);
-                                }
+                                let groupX = object.x + offsetX-cam.x;
+                                let groupY = object.y + offsetY-cam.y;
+                                this.ctx.save();
+                                const firstChild = object.objects[Object.keys(object.objects)[0]]||{x:0,y:0};
+                                const groupCenterX = groupX+firstChild.x;
+                                const groupCenterY = groupY+firstChild.y;
+                                this.ctx.translate(groupCenterX,groupCenterY);
+                                this.ctx.rotate((object.rotation+rotationOffset)*Math.PI/180);
+                                this.ctx.translate(-groupCenterX,-groupCenterY);
+                                for (let idx in object.objects) drawObject(object.objects[idx],object.x,object.y,selected,0);
+                                this.ctx.restore();
                                 return;
                         }
                         let objW = 0;
@@ -138,7 +146,7 @@ class Renderer {
                         const centerY = objY + objH/2;
 
                         this.ctx.translate(centerX,centerY);
-                        this.ctx.rotate((object.rotation)*Math.PI/180);
+                        this.ctx.rotate((object.rotation+rotationOffset)*Math.PI/180);
                         this.ctx.translate(-centerX,-centerY);
 
                         if (object.textContent) {
@@ -151,7 +159,7 @@ class Renderer {
                         for (let shape of object.shapes) {
                                 this.ctx.save();
                                 this.ctx.translate(centerX,centerY);
-                                this.ctx.rotate((shape.rotation)*Math.PI/180);
+                                this.ctx.rotate((shape.rotation+rotationOffset)*Math.PI/180);
                                 this.ctx.translate(-centerX,-centerY);
                                 drawShape(shape,objX,objY,selected,i);
                                 this.ctx.restore();
@@ -584,6 +592,7 @@ gui.newFunction("+ Group",()=>{
         gui.interface.renderer.frames[gui.interface.frame][name].objects = {};
         gui.interface.renderer.frames[gui.interface.frame][name].x = 0;
         gui.interface.renderer.frames[gui.interface.frame][name].y = 0;
+        gui.interface.renderer.frames[gui.interface.frame][name].rotation = 0;
         gui.render();
 },1);
 if (window.innerWidth <= 720) gui.newSelectedObjFunction("Select Shape",()=>gui.closeSelectSection());
@@ -1080,6 +1089,8 @@ gui.newSelectedShapeFunction("Size By",()=>{
         if (frame[gui.selectedObject].frames) {
                 frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].w += inputW;
                 frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].h += inputH;
+                frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].x += inputW/2;
+                frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].y += inputH/2;
                 gui.render();
                 return;
         }
@@ -1096,8 +1107,8 @@ gui.newSelectedShapeFunction("Size To",()=>{
 
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         if (frame[gui.selectedObject].frames) {
-                frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].x += inputW;
-                frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].y += inputH;
+                frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].w = inputW;
+                frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].h = inputH;
                 gui.render();
                 return;
         }
@@ -1283,7 +1294,6 @@ editContainer.appendChild(horizontalContainer)
 styleContainerVertically(objects);
 functions.forEach(div=>styleContainer(div));
 styleContainerVertically(shapes);
-alert("The rendering system has been majorly modified, if you have any projects created before A5, I suggest tweaking them now.");
 const initializeBody = ()=>{
         document.body.innerHTML = '';
         document.body.appendChild(buttons);
@@ -1297,5 +1307,5 @@ document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = false; // JANITOR prevents excessive debug logging
-const ver = "A5";
-document.title = `GoodForYou v${ver}`;
+const ver = "A6";
+document.title = `GoodForYou v${ver}, Remember to fix projects made before A5!`;
