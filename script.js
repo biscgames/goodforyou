@@ -122,8 +122,8 @@ class Renderer {
                         let minY = 0;
                         let maxY = 0;
                         for (let shape of (object.shapes||[])) {
-                                minX = Math.max(shape.w,shape.x+objW);
-                                minY = Math.max(shape.h,shape.y+objH);
+                                minX = Math.min(shape.w,shape.x+objW);
+                                minY = Math.min(shape.h,shape.y+objH);
                                 maxX = Math.max(shape.w,shape.x+objW);
                                 maxY = Math.max(shape.h,shape.y+objH);
                         }
@@ -281,7 +281,7 @@ class GUI {
         objectsSection = undefined; // DOM div
         selectedObjectSection = undefined; // DOM div
         selectedShapeSection = undefined; // DOM div
-        parent = "";
+        parent = [];
         functionsSection = []; // [DOM div]
         shapesSection = undefined; // DOM div
         currentFrameText = undefined; // DOM p|DOM span
@@ -300,7 +300,7 @@ class GUI {
                 deselect.addEventListener("click",()=>{
                         this.interface.renderer.selectedObject = "";
                         this.selectedObject = "";
-                        this.parent = undefined;
+                        this.parent.pop();
                         this.selectedShape = -1;
                         this.interface.renderer.selectedShape = -1;
                         this.updateObjects();
@@ -322,63 +322,46 @@ class GUI {
                 this.objectsSection.style.display = "none";
                 this.objectsSection.appendChild(deselect);
                 if (window.innerWidth > 720) this.shapesSection.appendChild(deselectShape);
-
-                const sel = this.interface.frame;
-                const frame = this.interface.renderer.frames[sel];
-
-                if (Object.keys(frame).length<1) return;
                 this.objectsSection.style.display = "flex";
-                for (let objectName in frame) {
-                        const btn = document.createElement("button");
-                        btn.textContent = objectName;
-                        btn.addEventListener("click",()=>{
-                                this.selectedObject = btn.textContent;
-                                this.updateObjectSelectionText();
-                                this.updateObjects();
-                                this.render();
-                                if (window.innerWidth <= 720 && gui.openSelectSection) gui.openSelectSection();
-                        });
-                        this.objectsSection.appendChild(btn)
-                }
-
-                this.selectedObjectSection.style.display = "none";
-                this.selectedShapeSection.style.display = "none";
-                if (this.selectedObject === "") return;
-                this.shapesSection.style.display = "flex";
-                if (this.selectedShape < 0 && window.innerWidth > 720) this.selectedObjectSection.style.display = "flex";
-
-                let obj = frame[this.parent]?frame[this.parent].objects[this.selectedObject]:frame[this.selectedObject]
-                let shapes = obj.shapes
-                if (!obj.shapes && obj.frames) {
-                        shapes = obj.frames[obj.state].shapes
-                };
-                if (obj.objects) {
-                        for (let name in frame[this.selectedObject].objects) {
-                                const btn = document.createElement("button");
-                                btn.textContent = name;
-                                btn.addEventListener("click",()=>{
-                                        this.parent = this.selectedObject;
-                                        this.selectedObject = btn.textContent;
+                const objects = this.interface.renderer.frames[this.interface.frame];
+                if (Object.keys(objects).length<1) return;
+                
+                for (let item in objects) {
+                        const f = document.createElement("button");
+                        f.textContent = item;
+                        f.addEventListener("click",()=>{
+                                if (!this.interface.renderer.frames[this.interface.frame]?.[f.textContent]) {
+                                        this.parent.pop();
+                                        this.render();
                                         this.updateObjectSelectionText();
-                                });
-                                this.shapesSection.appendChild(btn);
-                        }
-                        return;
-                };
-                let i = 0;
-                for (let shape of shapes||[]) {
-                        const btn = document.createElement("button");
-                        btn.textContent = shape.name + `(${i})`;
-                        let copy = i;
-                        btn.addEventListener("click",()=>{
-                                this.selectedShape = copy;
-                                this.updateObjectSelectionText();
+                                        return
+                                }
+                                this.selectedObject = f.textContent;
                                 this.render();
-                                if (window.innerWidth <= 720 && gui.openSelectSection) gui.openSelectSection();
                         })
-                        this.shapesSection.appendChild(btn);
-                        i++;
+                        gui.objectsSection.appendChild(f);
                 }
+                this.shapesSection.style.display = "flex";
+                const secondRow = getSelectedObject()?.objects
+                        ?getSelectedObject()?.objects
+                        :getSelectedObject()?.shapes;
+                for (let item in secondRow) {
+                        const f = document.createElement("button");
+                        f.textContent = getSelectedObject()?.objects?item:secondRow[item].name;
+                        f.addEventListener("click",()=>{
+                                if (getSelectedObject()?.objects) {
+                                        this.parent.push(this.selectedObject);
+                                        this.selectedObject = item;
+                                        this.render();
+                                        this.updateObjectSelectionText();
+                                        return;
+                                }
+                                this.selectedShape = item;
+                                this.render();
+                        })
+                        gui.shapesSection.appendChild(f);
+                }
+
                 if (this.selectedShape < 0) return;
                 if (window.innerWidth > 720) this.selectedShapeSection.style.display = "flex";
         }
@@ -459,20 +442,14 @@ class GUI {
                         this.selectedObjectText.textContent = "No Objects Selected!";
                         return;
                 }
-                const obj = this.interface.renderer.frames[this.interface.frame][this.selectedObject];
-                if (this.selectedShape < 0) {
-                        if (this.parent) {
-                                this.selectedObjectText.textContent = this.parent+">"+this.selectedObject;
-                                return
-                        }
-                        this.selectedObjectText.textContent = !obj.frames?this.selectedObject:this.selectedObject+"["+obj.state+"]";
-                        return
+                this.selectedObjectText.textContent = "";
+                for (let item of this.parent) {
+                        this.selectedObjectText.textContent += item+">";
                 }
-                if (this.parent) {
-                        this.selectedObjectText.textContent = this.parent+">"+this.selectedObject+">"+(obj.shapes?obj.shapes[this.selectedShape].name:obj.frames[obj.state].shapes[this.selectedShape].name);
-                        return
+                this.selectedObjectText.textContent += this.selectedObject+(this.selectedShape>-1?">":"")
+                if (this.selectedShape>-1) {
+                        this.selectedObjectText.textContent += this.selectedShape
                 }
-                this.selectedObjectText.textContent = (!obj.frames?this.selectedObject:this.selectedObject+"["+obj.state+"]")+">"+(obj.shapes?obj.shapes[this.selectedShape].name:obj.frames[obj.state].shapes[this.selectedShape].name);
         }
         draggingWithMouse(object,x,y) {
                 const obj = this.interface.renderer.frames[this.interface.frame][object];
@@ -480,6 +457,13 @@ class GUI {
                 obj.y = y;
         }
 }
+function getSelectedObject(offset=0) {
+        return gui.parent.length>0?gui.parent.reduce((acc,key,idx)=>{
+                acc = acc?.[key];
+                return idx<gui.parent.length-(1+offset)?acc.objects:acc;
+        },gui.interface.renderer.frames[gui.interface.frame])?.[gui.selectedObject]:gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+}
+
 
 document.body.style.backgroundColor = "gainsboro";
 const canvas = document.createElement("canvas");canvas.width = 600;canvas.height = 400;canvas.style.backgroundColor = "white";
@@ -487,77 +471,29 @@ const renderer = new Renderer(canvas);
 const i = new Interface(renderer);
 const gui = new GUI(i);
 
-const selectedObjectFunctions = document.createElement("div");
-styleContainerVertically(selectedObjectFunctions);
-gui.selectedObjectSection = selectedObjectFunctions;
+gui.selectedObjectSection = document.createElement("div");
+gui.selectedShapeSection = document.createElement("div");
 
 const objects = document.createElement("div");
-const functions = [
-        document.createElement("div"), // Frame or Animation Related
-        document.createElement("div"), // Object Related
-        document.createElement("div") // Shape Related
-];
 const shapes = document.createElement("div");
-
-function styleContainer(dom) {
-        dom.style.display = "flex";
-        dom.style.flexDirection = "row";
-        dom.style.maxWidth = (window.innerWidth/2)+"px";
-        dom.style.minHeight = "48px";
-        dom.style.height = "48px";
-        dom.style.overflowX = "scroll";
-        dom.style.overflowY = "hidden";
-        dom.style.marginBottom = "5px";
-        dom.addEventListener("wheel",e=>{
-                if (e.deltaY==0) return;
-                e.preventDefault();
-                dom.scrollLeft += e.deltaY;
-        });
-}
-function styleContainerVertically(dom) {
-        dom.style.display = "flex";
-        dom.style.flexDirection = "column";
-        dom.style.minWidth = "200px";
-        dom.style.width = "200px";
-        dom.style.minHeight = "150px";
-        dom.style.maxHeight = "150px";
-        dom.style.overflowY = "scroll";
-        dom.style.overflowX = "hidden";
-        dom.style.marginBottom = "5px";
-        dom.addEventListener("wheel",e=>{
-                if (e.deltaY==0) return;
-                e.preventDefault();
-                dom.scrollTop += e.deltaY;
-        });
-}
+const functions = [document.createElement("div"),document.createElement("div"),document.createElement("div")];
+const functionHolder = document.createElement("div");
 
 gui.objectsSection = objects;
 gui.shapesSection = shapes;
 gui.functionsSection = functions;
+gui.functionsSection.forEach(e=>e.style.display = "flex");
+gui.functionsSection.forEach(e=>e.style.flexDirection = "row");
+
+functionHolder.style.display = "flex"
+functionHolder.style.flexDirection = "column";
+gui.functionsSection.forEach(e=>functionHolder.appendChild(e));
 
 const shapesFunctions = document.createElement("div");
-styleContainerVertically(shapesFunctions);
 shapesFunctions.style.display = "none";
 gui.selectedShapeSection = shapesFunctions;
 
 gui.updateObjects();
-
-const imgCanvas = document.createElement("img");
-const imgObject = document.createElement("img");
-const imgShape = document.createElement("img");
-imgCanvas.src = "./canvas.png";
-imgObject.src = "./object.png";
-imgShape.src = "./shape.png";
-[imgCanvas,imgObject,imgShape].forEach(i=>{
-        i.style.marginRight = "10px";
-        i.style.width = "32px";
-        i.style.height = "32px";
-        i.style.alignSelf = "center";
-});
-
-gui.functionsSection[0].appendChild(imgCanvas);
-gui.functionsSection[1].appendChild(imgObject);
-gui.functionsSection[2].appendChild(imgShape);
 
 gui.newFunction("+ Rect Object",()=>gui.newObject(),1);
 gui.newFunction("+ Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
@@ -613,13 +549,13 @@ gui.newSelectedShapeFunction("Modify Studs",()=>{
 });
 gui.newSelectedObjFunction("< GO LEFT",()=>{
         if (gui.selectedObject === "") return;
-        let obj = !gui.parent?gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]:gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject];
+        const obj = getSelectedObject();
         obj.x -= gui.movePixels;
         gui.render();
 });
 gui.newSelectedShapeFunction("< GO LEFT",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
-        let temp = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+        let temp = getSelectedObject();
         if (temp.frames) {
                 let obj = temp.frames[temp.state].shapes[gui.selectedShape];
                 obj.x -= gui.movePixels;
@@ -632,13 +568,13 @@ gui.newSelectedShapeFunction("< GO LEFT",()=>{
 });
 gui.newSelectedObjFunction("GO RIGHT >",()=>{
         if (gui.selectedObject === "") return;
-        let obj = !gui.parent?gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]:gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject];
+        const obj = getSelectedObject();
         obj.x += gui.movePixels;
         gui.render();
 });
 gui.newSelectedShapeFunction("GO RIGHT >",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
-        let temp = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+        let temp = getSelectedObject();
         if (temp.frames) {
                 let obj = temp.frames[temp.state].shapes[gui.selectedShape];
                 obj.x += gui.movePixels;
@@ -651,13 +587,13 @@ gui.newSelectedShapeFunction("GO RIGHT >",()=>{
 });
 gui.newSelectedObjFunction("^ GO UP",()=>{
         if (gui.selectedObject === "") return;
-        let obj = !gui.parent?gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]:gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject];
-        obj.y -= gui.movePixels;
+        const obj = getSelectedObject();
+        obj = obj[gui.selectedObject];obj.y -= gui.movePixels;
         gui.render();
 });
 gui.newSelectedShapeFunction("^ GO UP",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
-        let temp = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+        let temp = getSelectedObject();
         if (temp.frames) {
                 let obj = temp.frames[temp.state].shapes[gui.selectedShape];
                 obj.y -= gui.movePixels;
@@ -670,13 +606,13 @@ gui.newSelectedShapeFunction("^ GO UP",()=>{
 });
 gui.newSelectedObjFunction("v GO DOWN",()=>{
         if (gui.selectedObject === "") return;
-        let obj = !gui.parent?gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]:gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject];
+        const obj = getSelectedObject();
         obj.y += gui.movePixels;
         gui.render();
 });
 gui.newSelectedShapeFunction("v GO DOWN",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
-        let temp = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+        let temp = getSelectedObject();
         if (temp.frames) {
                 let obj = temp.frames[temp.state].shapes[gui.selectedShape];
                 obj.y += gui.movePixels;
@@ -690,27 +626,28 @@ gui.newSelectedShapeFunction("v GO DOWN",()=>{
 gui.newSelectedObjFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
 gui.newSelectedObjFunction("Rotate Object",()=>{
         if (gui.selectedObject === "") return;
-        let obj = !gui.parent?gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]:gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject];
-        let inputR = prompt("Rotate by... (Degrees)");
+        const obj = getSelectedObject();
+        obj = obj[gui.selectedObject];let inputR = prompt("Rotate by... (Degrees)");
         inputR = isNaN(inputR)?0:Number(inputR);
         obj.rotation = inputR
         gui.render();
 });
 gui.newSelectedShapeFunction("Rotate Shape",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
-        let obj = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject].shapes[gui.selectedShape];
+        const obj = getSelectedObject();
+
         let inputR = prompt("Rotate by... (Degrees)");
         inputR = isNaN(inputR)?0:Number(inputR);
         obj.rotation = inputR
         gui.render();
-});
+})
 gui.newSelectedObjFunction("Copy",()=>{
         if (gui.selectedObject === "") {
                 gui.interface.objectClipboard = {};
                 return;
         }
-        let frame = gui.interface.renderer.frames[gui.interface.frame];
-        gui.interface.objectClipboard = structuredClone(!gui.parent?frame[gui.selectedObject]:frame[gui.parent].objects[gui.selectedObject]);
+        obj = getSelectedObject();
+        gui.interface.objectClipboard = structuredClone(obj);
         gui.interface.objectClipboard.name = gui.selectedObject
 });
 gui.newFunction("Paste",()=>{
@@ -999,9 +936,9 @@ gui.newFunction("Delete Frame",()=>{
         gui.interface.deleteFrame();
 });
 gui.newFunction("+ Rect Shape",()=>{
-        if (gui.selectedObject === "" || gui.parent) return;
+        if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
-        (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
+        getSelectedObject().shapes.push(new Shape(
                 ENUM.RECTANGLE,
                 0,0,
                 50,50
@@ -1009,9 +946,9 @@ gui.newFunction("+ Rect Shape",()=>{
         gui.render();
 },2);
 gui.newFunction("+ Oval Shape",()=>{
-        if (gui.selectedObject === "" || gui.parent) return;
+        if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
-        (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
+        getSelectedObject().shapes.push(new Shape(
                 ENUM.OVAL,
                 0,0,
                 50,50
@@ -1019,9 +956,9 @@ gui.newFunction("+ Oval Shape",()=>{
         gui.render();
 },2);
 gui.newFunction("+ Triangle Shape",()=>{
-        if (gui.selectedObject === "" || gui.parent) return;
+        if (gui.selectedObject === "") return;
         const frame = gui.interface.renderer.frames[gui.interface.frame];
-        (frame[gui.selectedObject].shapes?frame[gui.selectedObject].shapes:frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes).push(new Shape(
+        getSelectedObject().shapes.push(new Shape(
                 ENUM.TRIANGLE,
                 0,0,
                 50,50
@@ -1200,112 +1137,91 @@ gui.newSelectedShapeFunction("Move up",()=>{
         gui.render();
 });
 
+gui.selectedObjectText = document.createElement("span");
+gui.currentFrameText = document.createElement("span");
+
+gui.objectsSection = document.createElement("div");
+gui.shapesSection = document.createElement("div");
+
+gui.selectedObjectSection.style.display = "none";
+gui.selectedShapeSection.style.display = "none";
+
+canvas.addEventListener("click",e=>{
+        console.log("LOGD")
+        const canvRect = canvas.getBoundingClientRect();
+        let clientX = e.clientX-canvRect.left;
+        let clientY = e.clientY-canvRect.top;
+        console.log(clientX,clientY)
+        const frame = gui.interface.renderer.frames[gui.interface.frame]
+        let cam = frame[gui.interface.renderer.camera]?frame[gui.interface.renderer.camera]:{x:0,y:0};
+        function selectShapes(obj,objX,objY) {
+                gui.selectedShape = -1;
+                for (let idx=obj.shapes.length-1;idx>=0;idx--) {
+                        const shape = obj.shapes[idx];
+                        const shapeX = objX + shape.x;
+                        const shapeY = objY + shape.y;
+                        if (clientX>=shapeX-25&&clientX<=shapeX+shape.w&&clientY>=shapeY-25&&clientY<=shapeY+shape.h) {
+                                gui.selectedShape = idx;
+                                break;
+                        }
+                }
+        }
+        for (let i=Object.keys(frame).length-1;i>=0;i--) {
+                const k = Object.keys(frame)[i];
+                const obj = frame[k];
+                if (!obj||obj.visible===false) continue;
+                const objX = obj.x-cam.x+canvas.width/2;
+                const objY = obj.y-cam.y+canvas.height/2;
+                const objW = obj.w||0;
+                const objH = obj.h||0;
+                if (clientX>=objX-25&&clientX<=objX+objW&&clientY>=objY-25&&clientY<=objY+objH) {
+                        if (gui.selectedObject !== "") selectShapes(obj,objX,objY);
+                        gui.selectedObject = k;
+                        gui.render();
+                        break;
+                }
+        }
+});
+
 document.body.style.display = "flex";
 document.body.style.flexDirection = "column";
 document.body.style.alignItems = "center";
 
-const currentFrame = document.createElement("span");
-const selectedObject = document.createElement("span");
+const hierarchySection = document.createElement("div");
+hierarchySection.style.display = "flex";
+gui.objectsSection.style.display = "flex";
+gui.objectsSection.style.flexDirection = "column";
+gui.objectsSection.style.height = "120px";
+gui.objectsSection.style.overflowY = "scroll";
+gui.shapesSection.style.display = "flex";
+gui.shapesSection.style.flexDirection = "column";
+gui.shapesSection.style.height = "120px";
+gui.shapesSection.style.overflowY = "scroll";
+gui.selectedObjectSection.style.display = "none";
+gui.selectedObjectSection.style.height = "120px";
+gui.selectedObjectSection.style.overflowY = "scroll";
+gui.selectedObjectSection.style.flexDirection = "column";
+gui.selectedShapeSection.style.height = "120px";
+gui.selectedShapeSection.style.overflowY = "scroll";
+gui.selectedShapeSection.style.flexDirection = "column";
+hierarchySection.appendChild(gui.objectsSection);
+hierarchySection.appendChild(gui.shapesSection);
+hierarchySection.appendChild(gui.selectedObjectSection);
+hierarchySection.appendChild(gui.selectedShapeSection);
 
-gui.currentFrameText = currentFrame;
-currentFrame.textContent = "Frame " + gui.interface.frame;
-gui.selectedObjectText = selectedObject;
-selectedObject.textContent = "No Selected Objects!";
-
-const horizontalContainer = document.createElement("div");
-horizontalContainer.style.display = "flex";
-horizontalContainer.style.flexDirection = "row";
-horizontalContainer.style.minWidth = window.innerWidth+"px";
-const objShapeContainer = document.createElement("div");
-gui.objShapeContainer = objShapeContainer;
-const sectionContainer = document.createElement("div");
-sectionContainer.style.marginRight = "10px";
-
-function styleContainers(dom) {
-        dom.style.display = "flex";
-        dom.style.flexDirection = "column"
-        if (window.innerWidth<=720) dom.style.maxWidth = "250px" 
-        dom.style.minHeight = "200px";
-        dom.style.maxHeight = "200px";
-        dom.style.overflowY = "scroll";
-        dom.addEventListener("wheel",e=>{
-                if (e.deltaY==0) return;
-                e.preventDefault();
-                dom.scrollTop += e.deltaY;
-        });
-}
-function styleContainersHorizontally(dom) {
-        dom.style.display = "flex";
-        dom.style.flexDirection = "row";
-        dom.style.minWidth = "400px";
-        dom.style.maxWidth = "400px";
-        dom.style.overflowY = "scroll";
-        dom.addEventListener("wheel",e=>{
-                if (e.deltaY==0) return;
-                e.preventDefault();
-                dom.scrollTop += e.deltaY;
-        });
-}
-styleContainers(sectionContainer);
-styleContainersHorizontally(objShapeContainer);
-
-const editContainer = document.createElement("div");
-editContainer.style.display = "flex";
-editContainer.style.flexDirection = "column";
-editContainer.style.height = "0px";
-
-const about = document.createElement("button");
-about.textContent = "Notes & Credits";
-about.addEventListener("click",()=>{
-        alert("Created by Cookie/Biscgames\nAll icons by https://icons8.com/\n\nYou can report any bugs on my discord server: https://discord.gg/k6dptVBm\nOr open an issue: https://github.com/biscgames/goodforyou");
-})
-gui.openSelectSection = ()=>{
-        if (gui.selectedObject === "") return;
-        objShapeContainer.style.minWidth = "200px";
-        objShapeContainer.style.maxWidth = "200px";
-        gui.selectedShapeSection.style.display = "none";
-        if (gui.selectedShape > -1) {
-                gui.selectedShapeSection.style.display = "flex";
-                return;
-        }
-        gui.selectedObjectSection.style.display = "flex";
-};
-gui.closeSelectSection = ()=>{
-        objShapeContainer.style.minWidth = "400px";
-        objShapeContainer.style.maxWidth = "400px";
-        gui.selectedShapeSection.style.display = "none";
-        gui.selectedObjectSection.style.display = "none";
-};
-const buttons = document.createElement("div");
-buttons.style.display = "flex";
-buttons.style.flexDirection = "row";
-buttons.appendChild(about);
-
-functions.forEach(div=>sectionContainer.appendChild(div));
-objShapeContainer.appendChild(objects);
-objShapeContainer.appendChild(shapes);
-horizontalContainer.appendChild(sectionContainer);
-horizontalContainer.appendChild(objShapeContainer);
-selectedObjectFunctions.style.display = "none";
-horizontalContainer.appendChild(selectedObjectFunctions);
-horizontalContainer.appendChild(shapesFunctions);
-editContainer.appendChild(horizontalContainer)
-
-styleContainerVertically(objects);
-functions.forEach(div=>styleContainer(div));
-styleContainerVertically(shapes);
 const initializeBody = ()=>{
         document.body.innerHTML = '';
-        document.body.appendChild(buttons);
-        document.body.appendChild(canvas);
-        document.body.appendChild(currentFrame);
-        document.body.appendChild(selectedObject);
-        document.body.appendChild(editContainer);
+        gui.updateObjectSelectionText();
+        document.body.appendChild(gui.selectedObjectText);
+        document.body.appendChild(gui.currentFrameText);
+        document.body.appendChild(functionHolder);
+        document.body.appendChild(canvas)
+        document.body.appendChild(hierarchySection);
         gui.render();
 };
 document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
-let JANITOR = false; // JANITOR prevents excessive debug logging
-const ver = "A6";
-document.title = `GoodForYou v${ver}, Remember to fix projects made before A5!`;
+let JANITOR = true; // JANITOR prevents excessive debug logging
+const ver = "B1";
+document.title = `GoodForYou v${ver}`;
