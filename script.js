@@ -768,6 +768,15 @@ gui.newDropdownFunction("Copy",()=>{
         gui.interface.objectClipboard = structuredClone(obj);
         gui.interface.objectClipboard.name = gui.selectedObject
 },1);
+gui.newSelectedObjFunction("Copy",()=>{
+        if (gui.selectedObject === "") {
+                gui.interface.objectClipboard = {};
+                return;
+        }
+        obj = gui.getSelectedObject();
+        gui.interface.objectClipboard = structuredClone(obj);
+        gui.interface.objectClipboard.name = gui.selectedObject
+});
 gui.newDropdownFunction("Paste",()=>{
         if (Object.keys(gui.interface.objectClipboard).length<1) return;
         gui.historyStack();
@@ -1041,14 +1050,14 @@ gui.newDropdownFunction("Debug Everything",()=>{
 });
 gui.newFunction("< Frame",()=>{
         if (gui.interface.frame == 0) return;
-        gui.parent = undefined;
+        gui.parent = [];
         gui.selectedObject = "";
         gui.interface.frame--;
         gui.render()
 });
 gui.newFunction("Frame >",()=>{
         if (gui.interface.frame == gui.interface.renderer.frames.length-1) return;
-        gui.parent = undefined;
+        gui.parent = [];
         gui.selectedObject = "";
         gui.interface.frame++;
         gui.render();
@@ -1076,6 +1085,9 @@ gui.newFunction("Play/Stop",()=>{
         },gui.speed*1000);
 });
 gui.newDropdownFunction("Copy Frame",()=>{
+        gui.interface.copyFrame();
+});
+gui.newFunction("Copy Frame",()=>{
         gui.interface.copyFrame();
 });
 gui.newFunction("Paste Frame",()=>{
@@ -1154,6 +1166,18 @@ gui.newDropdownFunction("Copy",()=>{
         }
         gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].shapes[gui.selectedShape]);
 },2);
+gui.newSelectedShapeFunction("Copy",()=>{
+        if (gui.selectedShape < 0 || gui.parent) {
+                gui.interface.shapeClipboard = {};
+                return;
+        }
+        let frame = gui.interface.renderer.frames[gui.interface.frame];
+        if (frame[gui.selectedObject].frames) {
+                gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape]);
+                return;
+        }
+        gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].shapes[gui.selectedShape]);
+});
 gui.newDropdownFunction("Paste",()=>{
         if (Object.keys(gui.interface.shapeClipboard).length<1) return;
         gui.historyStack();
@@ -1329,7 +1353,7 @@ gui.newSelectedShapeFunction("Move up",()=>{
         gui.selectedShape++;
         gui.render();
 });
-gui.newFunction("Undo",()=>gui.popHistoryStack());
+gui.newDropdownFunction("Undo",()=>gui.popHistoryStack());
 
 gui.selectedObjectText = document.createElement("span");
 gui.currentFrameText = document.createElement("span");
