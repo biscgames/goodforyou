@@ -1384,7 +1384,7 @@ const edit = document.createElement("div");
 edit.style.display = "flex";
 edit.style.flexDirection = "column";
 
-canvas.width = 500;
+canvas.width = Math.min(window.innerWidth,500);
 canvas.height = 300;
 canvas.style.width = canvas.width+"px";
 canvas.style.height = canvas.height+"px";
@@ -1427,5 +1427,5 @@ document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B3";
+const ver = "B3.1";
 document.title = `GoodForYou v${ver}, Group Nesting!`;
