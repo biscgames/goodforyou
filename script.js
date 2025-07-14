@@ -292,6 +292,7 @@ class GUI {
         movePixels = 50;
         objShapeContainer = undefined;
         history = [];
+        dropdownSections = undefined;
         constructor(interface_) {
                 this.interface = interface_;
         }
@@ -416,7 +417,7 @@ class GUI {
                 });
         }
         popHistoryStack() { // (aka undo)
-                if (this.history.length < 1) return;
+                if (this.history.length <= 0) return;
                 const lastSave = this.history[this.history.length-1];
                 this.interface.renderer.frames[lastSave.frame] = lastSave.objects;
                 this.render();
@@ -463,6 +464,37 @@ class GUI {
                 f.style.minHeight = "48px";
                 this.functionsSection[idx].appendChild(f);
         }
+        newDropdownCategory(name) {
+                this.dropdownSections.style.display = "flex";
+                this.dropdownSections.style.flexDirection = "row";
+                const f = document.createElement("span");
+                f.style.display = "flex";
+                f.style.flexDirection = "column";
+                f.textContent = name;
+                f.style.marginRight = "10px";
+                f.style.backgroundColor = "#FFFFFF";
+                f.addEventListener("click",()=>{
+                        Array.from(f.children).forEach(e=>{e.style.display==="block"?e.style.display="none":e.style.display="block";});
+                        f.style.backgroundColor = f.children[0].style.display=="block"?"#a2a2a2ff":"#FFFFFF";
+                })
+                this.dropdownSections.appendChild(f);
+        }
+        newDropdownFunction(name,func,idx=0) {
+                let f = this.dropdownSections.children[idx];
+                const g = document.createElement("span");
+                g.style.display = "none";
+                g.textContent = name;
+                g.addEventListener("click",()=>{
+                        if (g.style.display !== "block") return;
+                        func()
+                        setTimeout(()=>{
+                                Array.from(f.children).forEach(e=>e.style.display="none");
+                                f.style.backgroundColor = "#FFFFFF";
+                        },300)
+                });
+                f.appendChild(g);
+        }
+
         newSelectedObjFunction(name,func=this.newObject) {
                 const f = document.createElement("button");
                 f.textContent = name;
@@ -519,13 +551,28 @@ gui.selectedShapeSection = document.createElement("div");
 const objects = document.createElement("div");
 const shapes = document.createElement("div");
 const functions = [document.createElement("div"),document.createElement("div"),document.createElement("div")];
+
+function styleIMG(img,src) {
+        img.src = src;
+        img.style.height = "48px";
+        img.style.width = "48px";
+}
+functions[0].appendChild(document.createElement("img"));
+functions[1].appendChild(document.createElement("img"));
+functions[2].appendChild(document.createElement("img"));
+styleIMG(functions[0].querySelector("img"),"./canvas.png")
+styleIMG(functions[1].querySelector("img"),"./object.png")
+styleIMG(functions[2].querySelector("img"),"./shape.png")
 const functionHolder = document.createElement("div");
+gui.dropdownSections = document.createElement("div");
 
 gui.objectsSection = objects;
 gui.shapesSection = shapes;
 gui.functionsSection = functions;
 gui.functionsSection.forEach(e=>e.style.display = "flex");
 gui.functionsSection.forEach(e=>e.style.flexDirection = "row");
+gui.functionsSection.forEach(e=>e.style.overflowY = "scroll");
+gui.functionsSection.forEach(e=>e.style.maxWidth = window.innerWidth+"px");
 
 functionHolder.style.display = "flex"
 functionHolder.style.flexDirection = "column";
@@ -537,10 +584,17 @@ gui.selectedShapeSection = shapesFunctions;
 
 gui.updateObjects();
 
-gui.newFunction("+ Rect Object",()=>gui.newObject(),1);
-gui.newFunction("+ Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
-gui.newFunction("+ Oval Object",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0),1);
-gui.newFunction("+ Sequence Object",()=>{
+gui.newDropdownCategory("Canvas");
+gui.newDropdownCategory("Object");
+gui.newDropdownCategory("Shape");
+gui.newDropdownFunction("Test Dropdowns",()=>{
+        console.log("Hello, World!");
+})
+
+gui.newDropdownFunction("+ Rect Object",()=>gui.newObject(),1);
+gui.newDropdownFunction("+ Empty Object",()=>gui.newObject("MyObject",[],0,0),1);
+gui.newDropdownFunction("+ Oval Object",()=>gui.newObject("MyObject",[new Shape(ENUM.OVAL,0,0,50,50)],0,0),1);
+gui.newDropdownFunction("+ Sequence Object",()=>{
         gui.historyStack();
         let name = "MyObjectSequence";
         const sel = gui.getSelectedObject()?.objects??gui.interface.renderer.frames[gui.interface.frame];
@@ -554,7 +608,7 @@ gui.newFunction("+ Sequence Object",()=>{
         sel[name].y = 0;
         gui.render();
 },1);
-gui.newFunction("+ Text Object",()=>{
+gui.newDropdownFunction("+ Text Object",()=>{
         gui.historyStack();
         let name = "MyText";
         const sel = gui.getSelectedObject()?.objects??gui.interface.renderer.frames[gui.interface.frame];
@@ -567,7 +621,7 @@ gui.newFunction("+ Text Object",()=>{
         sel[name].color = "#000000";
         gui.render();
 },1);
-gui.newFunction("+ Group",()=>{
+gui.newDropdownFunction("+ Group",()=>{
         gui.historyStack();
         let name = "MyObjectGroup";
         const sel = gui.getSelectedObject()?.objects??gui.interface.renderer.frames[gui.interface.frame];
@@ -584,6 +638,11 @@ if (window.innerWidth <= 720) gui.newSelectedShapeFunction("Deselect",()=>{
         gui.selectedShape = -1;
         gui.closeSelectSection();
         setTimeout(()=>gui.openSelectSection(),100);
+});
+gui.newDropdownFunction("Modify Studs",()=>{
+        let input = prompt(`Move objects by... (prev ${gui.movePixels}px)`);
+        input = isNaN(input)?0:Number(input);
+        gui.movePixels = input
 });
 gui.newSelectedObjFunction("Modify Studs",()=>{
         let input = prompt(`Move objects by... (prev ${gui.movePixels}px)`);
@@ -679,6 +738,7 @@ gui.newSelectedShapeFunction("v GO DOWN",()=>{
         obj.y += gui.movePixels;
         gui.render();
 });
+gui.newDropdownFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
 gui.newSelectedObjFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
 gui.newSelectedObjFunction("Rotate Object",()=>{
         if (gui.selectedObject === "") return;
@@ -699,7 +759,7 @@ gui.newSelectedShapeFunction("Rotate Shape",()=>{
         obj.rotation = inputR
         gui.render();
 })
-gui.newSelectedObjFunction("Copy",()=>{
+gui.newDropdownFunction("Copy",()=>{
         if (gui.selectedObject === "") {
                 gui.interface.objectClipboard = {};
                 return;
@@ -707,8 +767,8 @@ gui.newSelectedObjFunction("Copy",()=>{
         obj = gui.getSelectedObject();
         gui.interface.objectClipboard = structuredClone(obj);
         gui.interface.objectClipboard.name = gui.selectedObject
-});
-gui.newFunction("Paste",()=>{
+},1);
+gui.newDropdownFunction("Paste",()=>{
         if (Object.keys(gui.interface.objectClipboard).length<1) return;
         gui.historyStack();
         const frame = gui.interface.renderer.frames[gui.interface.frame];
@@ -718,15 +778,15 @@ gui.newFunction("Paste",()=>{
         delete frame[gui.interface.objectClipboard.name].name;
         gui.render();
 },1);
-gui.newSelectedObjFunction("Paste > Sequence State",()=>{
+gui.newDropdownFunction("Paste > Sequence State",()=>{
         if (gui.selectedObject === "" || Object.keys(gui.interface.objectClipboard).length<1) return;
         gui.historyStack();
         let obj = gui.getSelectedObject();
         if (obj.shapes) return;
         obj.frames[obj.state] = gui.interface.objectClipboard;
         gui.render();
-});
-gui.newSelectedObjFunction("Pst > Group",()=>{
+},1);
+gui.newDropdownFunction("Paste > Group",()=>{
         if (gui.selectedObject === "" || Object.keys(gui.interface.objectClipboard).length<1) return;
         gui.historyStack();
         let obj = gui.getSelectedObject();
@@ -735,15 +795,15 @@ gui.newSelectedObjFunction("Pst > Group",()=>{
         obj.objects[gui.interface.objectClipboard.name] = gui.interface.objectClipboard;
         delete obj.objects[gui.interface.objectClipboard.name].name;
         gui.render();
-});
-gui.newSelectedObjFunction("Remove from Group",()=>{
+},1);
+gui.newDropdownFunction("Remove from Group",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject] = structuredClone(gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject]);
         delete gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject]
         gui.render();
-});
-gui.newSelectedObjFunction("Rename Selected",()=>{
+},1);
+gui.newDropdownFunction("Rename Selected",()=>{
         if (gui.selectedObject === "") return;
         if (gui.parent.length > 0) {
                 alert("You cannot rename objects inside of a group");
@@ -756,29 +816,29 @@ gui.newSelectedObjFunction("Rename Selected",()=>{
         gui.selectedObject = input;
         gui.render();
         gui.selectedObjectText.textContent = gui.selectedObject;
-});
-gui.newSelectedObjFunction("Set Sequence State",()=>{
+},1);
+gui.newDropdownFunction("Set Sequence State",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         let obj = gui.getSelectedObject();
         if (obj.shapes) return;
         obj.state = Number(prompt("Set State To..."));
         gui.render();
-});
-gui.newSelectedObjFunction("Set as Camera",()=>{
+},1);
+gui.newDropdownFunction("Set as Camera",()=>{
         if (gui.selectedObject === "") return;
         gui.interface.renderer.camera = gui.selectedObject;
         gui.interface.renderer.cameraObj = gui.getSelectedObject();
         alert("You have set this object as a camera. This object will be duplicated to other frames that don't have the object.")
         gui.render();
-});
+},1);
 gui.newFunction("Remove Camera",()=>{
         gui.interface.renderer.camera = undefined;
 },1);
 gui.newSelectedObjFunction("Remove Camera",()=>{
         gui.interface.renderer.camera = undefined;
 });
-gui.newFunction("Import Project",()=>{
+gui.newDropdownFunction("Import Project",()=>{
         gui.interface.frame = 0;
 
         const f = document.createElement("input");
@@ -816,7 +876,7 @@ gui.newFunction("BG Color",()=>{
                 },100);
         })
 });
-gui.newSelectedObjFunction("Export Object",()=>{
+gui.newDropdownFunction("Export Object",()=>{
         const obj = gui.getSelectedObject();
         let jsonFile = JSON.stringify(
                 {
@@ -833,14 +893,14 @@ gui.newSelectedObjFunction("Export Object",()=>{
 
         a.click();
         a.remove();
-});
-gui.newSelectedObjFunction("Set Text",()=>{
+},1);
+gui.newDropdownFunction("Set Text",()=>{
         const obj = gui.getSelectedObject();
         if (!obj.textContent) return;
         gui.historyStack();
         obj.textContent = prompt("What should the text be?");
         gui.render();
-});
+},1);
 gui.newSelectedObjFunction("Size Up Text",()=>{
         const obj = gui.getSelectedObject();
         if (!obj.textContent) return;
@@ -855,7 +915,7 @@ gui.newSelectedObjFunction("Size Down Text",()=>{
         obj.fontSize -= 5
         gui.render();
 });
-gui.newFunction("Import Object",()=>{
+gui.newDropdownFunction("Import Object",()=>{
         const f = document.createElement("input");
         f.type = "file";
 
@@ -875,7 +935,7 @@ gui.newFunction("Import Object",()=>{
         
         f.click();
 },1);
-gui.newSelectedObjFunction("Add New State > Sequence",()=>{
+gui.newDropdownFunction("Add New State > Sequence",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         let obj = gui.getSelectedObject();
@@ -884,14 +944,25 @@ gui.newSelectedObjFunction("Add New State > Sequence",()=>{
         obj.frames.push(new Object_([],0,0));
         obj.state = obj.frames.length-1;
         gui.render();
-});
-gui.newSelectedObjFunction("Remove State > Sequence",()=>{
+},1);
+gui.newDropdownFunction("Remove State > Sequence",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
 
         const obj = gui.getSelectedObject();
         obj.frames.splice(obj.state,1);
         if (obj.state > obj.frames.length-1) obj.state = obj.frames.length-1;
+        gui.render();
+},1);
+gui.newDropdownFunction("Toggle Visibility",()=>{
+        if (gui.selectedObject === "") return;
+        gui.historyStack();
+        const obj = gui.getSelectedObject();
+        if (obj.visible === undefined) {
+                const objFS = gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]
+                obj.frames[obj.state].visible = !(obj.frames[obj.state].visible);
+        }
+        obj.visible = !(obj.visible);
         gui.render();
 });
 gui.newSelectedObjFunction("Toggle Visibility",()=>{
@@ -905,7 +976,7 @@ gui.newSelectedObjFunction("Toggle Visibility",()=>{
         obj.visible = !(obj.visible);
         gui.render();
 });
-gui.newFunction("Export Project (.json)",()=>{
+gui.newDropdownFunction("Export Project (.json)",()=>{
         let input = prompt("Enter a name!");
         let jsonFile = JSON.stringify(
                 {
@@ -930,7 +1001,7 @@ gui.newFunction("Anim Speed",()=>{
         input = isNaN(input)?0.1:Number(input);
         gui.speed = input;
 });
-gui.newFunction("Move By",()=>{
+gui.newDropdownFunction("Move By",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const frames = gui.interface.renderer.frames;
@@ -944,7 +1015,7 @@ gui.newFunction("Move By",()=>{
 
         gui.interface.render();
 },1);
-gui.newFunction("Move To",()=>{
+gui.newDropdownFunction("Move To",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         let inputX = prompt("Move X to...");
@@ -954,13 +1025,13 @@ gui.newFunction("Move To",()=>{
         
         gui.modifySelectedAttr({x:inputX,y:inputY})
 },1);
-gui.newFunction("Debug Selected",()=>{
+gui.newDropdownFunction("Debug Selected",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
         alert(JSON.stringify(obj,null,2));
 },1);
-gui.newFunction("Debug Everything",()=>{
+gui.newDropdownFunction("Debug Everything",()=>{
         const obj = {
                 renderer: gui.interface.renderer,
                 interface: gui.interface,
@@ -1004,7 +1075,7 @@ gui.newFunction("Play/Stop",()=>{
                 gui.interface.render();
         },gui.speed*1000);
 });
-gui.newFunction("Copy Frame",()=>{
+gui.newDropdownFunction("Copy Frame",()=>{
         gui.interface.copyFrame();
 });
 gui.newFunction("Paste Frame",()=>{
@@ -1019,7 +1090,7 @@ gui.newFunction("Delete Frame",()=>{
         gui.selectedObject = "";
         gui.interface.deleteFrame();
 });
-gui.newFunction("+ Rect Shape",()=>{
+gui.newDropdownFunction("+ Rect Shape",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const frame = gui.interface.renderer.frames[gui.interface.frame];
@@ -1030,7 +1101,7 @@ gui.newFunction("+ Rect Shape",()=>{
         ));
         gui.render();
 },2);
-gui.newFunction("+ Oval Shape",()=>{
+gui.newDropdownFunction("+ Oval Shape",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const frame = gui.interface.renderer.frames[gui.interface.frame];
@@ -1041,7 +1112,7 @@ gui.newFunction("+ Oval Shape",()=>{
         ));
         gui.render();
 },2);
-gui.newFunction("+ Triangle Shape",()=>{
+gui.newDropdownFunction("+ Triangle Shape",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const frame = gui.interface.renderer.frames[gui.interface.frame];
@@ -1052,7 +1123,7 @@ gui.newFunction("+ Triangle Shape",()=>{
         ));
         gui.render();
 },2);
-gui.newSelectedShapeFunction("Delete Selected",()=>{
+gui.newDropdownFunction("Delete Selected",()=>{
         if ((gui.selectedObject === "" && gui.selectedShape < 0)) return;
         gui.historyStack();
         if (gui.interface.renderer.camera === gui.selectedObject) {
@@ -1070,8 +1141,8 @@ gui.newSelectedShapeFunction("Delete Selected",()=>{
         gui.selectedShape = -1;
         
         gui.render();
-});
-gui.newSelectedShapeFunction("Copy",()=>{
+},2);
+gui.newDropdownFunction("Copy",()=>{
         if (gui.selectedShape < 0 || gui.parent) {
                 gui.interface.shapeClipboard = {};
                 return;
@@ -1082,15 +1153,15 @@ gui.newSelectedShapeFunction("Copy",()=>{
                 return;
         }
         gui.interface.shapeClipboard = structuredClone(frame[gui.selectedObject].shapes[gui.selectedShape]);
-});
-gui.newFunction("Paste",()=>{
+},2);
+gui.newDropdownFunction("Paste",()=>{
         if (Object.keys(gui.interface.shapeClipboard).length<1) return;
         gui.historyStack();
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
         gui.render();
 },2);
-gui.newSelectedShapeFunction("Rename Selected",()=>{
+gui.newDropdownFunction("Rename Selected",()=>{
         if (gui.selectedShape < 0) return;
         gui.historyStack();
         let input = prompt("Enter a new name!");
@@ -1104,7 +1175,7 @@ gui.newSelectedShapeFunction("Rename Selected",()=>{
         object.shapes[gui.selectedShape].name = input;
         gui.render();
         gui.updateObjectSelectionText();
-});
+},2);
 gui.newSelectedShapeFunction("Size By",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
@@ -1143,7 +1214,7 @@ gui.newSelectedShapeFunction("Size To",()=>{
         gui.getSelectedObject().shapes[gui.selectedShape].h = inputH;
         gui.render();
 });
-gui.newFunction("Shift By",()=>{
+gui.newDropdownFunction("Shift By",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
         let inputW = prompt("Shift Shape X By...");
@@ -1161,7 +1232,7 @@ gui.newFunction("Shift By",()=>{
         gui.getSelectedObject().shapes[gui.selectedShape].y += inputH;
         gui.render();
 },2);
-gui.newFunction("Shift To",()=>{
+gui.newDropdownFunction("Shift To",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
         let inputW = prompt("Shift Shape X To...");
@@ -1173,7 +1244,7 @@ gui.newFunction("Shift To",()=>{
         gui.getSelectedObject().shapes[gui.selectedShape].y = inputH;
         gui.render();
 },2);
-gui.newFunction("Change Color",()=>{
+gui.newDropdownFunction("Change Color",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const colorPicker = document.createElement("input");
@@ -1210,6 +1281,18 @@ gui.newFunction("Modify Attributes",()=>{
         
         gui.render();
 },2);
+gui.newDropdownFunction("Move down",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0 || gui.parent) return;
+        gui.historyStack();
+        const object = gui.getSelectedObject();
+        const shape = object.shapes[gui.selectedShape];
+        if (!object.shapes[gui.selectedShape-1]) return;
+        const shapePrev = structuredClone(object.shapes[gui.selectedShape-1]);
+        object.shapes[gui.selectedShape-1] = shape;
+        object.shapes[gui.selectedShape] = shapePrev;
+        gui.selectedShape--;
+        gui.render();
+});
 gui.newSelectedShapeFunction("Move down",()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0 || gui.parent) return;
         gui.historyStack();
@@ -1220,6 +1303,18 @@ gui.newSelectedShapeFunction("Move down",()=>{
         object.shapes[gui.selectedShape-1] = shape;
         object.shapes[gui.selectedShape] = shapePrev;
         gui.selectedShape--;
+        gui.render();
+});
+gui.newDropdownFunction("Move up",()=>{
+        if (gui.selectedObject === "" && gui.selectedShape < 0 || gui.parent) return;
+        gui.historyStack();
+        const object = gui.getSelectedObject();
+        const shape = object.shapes[gui.selectedShape];
+        if (!object.shapes[gui.selectedShape+1]) return;
+        const shapePrev = structuredClone(object.shapes[gui.selectedShape+1]);
+        object.shapes[gui.selectedShape+1] = shape;
+        object.shapes[gui.selectedShape] = shapePrev;
+        gui.selectedShape++;
         gui.render();
 });
 gui.newSelectedShapeFunction("Move up",()=>{
@@ -1282,25 +1377,33 @@ canvas.addEventListener("click",e=>{
         }
 });
 
+document.body.style.padding = "20px";
 document.body.style.display = "flex";
 document.body.style.flexDirection = "column";
-document.body.style.alignItems = "center";
+const edit = document.createElement("div");
+edit.style.display = "flex";
+edit.style.flexDirection = "column";
+
+canvas.width = 500;
+canvas.height = 300;
+canvas.style.width = canvas.width+"px";
+canvas.style.height = canvas.height+"px";
 
 const hierarchySection = document.createElement("div");
 hierarchySection.style.display = "flex";
 gui.objectsSection.style.display = "flex";
 gui.objectsSection.style.flexDirection = "column";
-gui.objectsSection.style.height = "120px";
+gui.objectsSection.style.height = "100px";
 gui.objectsSection.style.overflowY = "scroll";
 gui.shapesSection.style.display = "flex";
 gui.shapesSection.style.flexDirection = "column";
-gui.shapesSection.style.height = "120px";
+gui.shapesSection.style.height = "100px";
 gui.shapesSection.style.overflowY = "scroll";
 gui.selectedObjectSection.style.display = "none";
-gui.selectedObjectSection.style.height = "120px";
+gui.selectedObjectSection.style.height = "100px";
 gui.selectedObjectSection.style.overflowY = "scroll";
 gui.selectedObjectSection.style.flexDirection = "column";
-gui.selectedShapeSection.style.height = "120px";
+gui.selectedShapeSection.style.height = "100px";
 gui.selectedShapeSection.style.overflowY = "scroll";
 gui.selectedShapeSection.style.flexDirection = "column";
 hierarchySection.appendChild(gui.objectsSection);
@@ -1311,16 +1414,18 @@ hierarchySection.appendChild(gui.selectedShapeSection);
 const initializeBody = ()=>{
         document.body.innerHTML = '';
         gui.updateObjectSelectionText();
-        document.body.appendChild(gui.selectedObjectText);
-        document.body.appendChild(gui.currentFrameText);
-        document.body.appendChild(functionHolder);
-        document.body.appendChild(canvas)
-        document.body.appendChild(hierarchySection);
+        edit.appendChild(gui.selectedObjectText);
+        edit.appendChild(gui.currentFrameText);
+        edit.appendChild(functionHolder);
+        edit.appendChild(canvas);
+        edit.appendChild(hierarchySection);
+        document.body.appendChild(gui.dropdownSections);
+        document.body.appendChild(edit);
         gui.render();
 };
 document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B2";
+const ver = "B3";
 document.title = `GoodForYou v${ver}, Group Nesting!`;
