@@ -53,6 +53,7 @@ class Renderer {
         cameraObj = undefined;
         selectedObject = "";
         selectedShape = -1;
+        parent = [];
 
         constructor(canvas) {
                 this.canvas = canvas;
@@ -248,7 +249,8 @@ class Interface {
         deleteFrame() {
                 this.renderer.frames.splice(this.frame,1);
                 if (this.frame > this.renderer.frames.length-1) this.frame--;
-                this.render()
+
+                setTimeout(()=>this.render(),300);
                 if (!JANITOR) console.log("Deleted frame!");
         }
         cutFrame() {
@@ -1064,7 +1066,7 @@ gui.newFunction("Frame >",()=>{
 });
 gui.newFunction("+ Frame",()=>{
         gui.interface.createNewFrame();
-        gui.parent = undefined;
+        gui.parent = [];
         gui.selectedObject = "";
         gui.render();
 });
@@ -1074,7 +1076,7 @@ gui.newFunction("Play/Stop",()=>{
                 gui.playing = false;
                 return;
         }
-        gui.parent = undefined;
+        gui.parent = [];
         gui.selectedObject = "";
         gui.playing = true;
         gui.interval = setInterval(()=>{
@@ -1098,9 +1100,10 @@ gui.newFunction("Paste Frame",()=>{
         gui.render();
 });
 gui.newFunction("Delete Frame",()=>{
-        gui.parent = undefined;
+        gui.parent = [];
         gui.selectedObject = "";
         gui.interface.deleteFrame();
+        gui.render();
 });
 gui.newDropdownFunction("+ Rect Shape",()=>{
         if (gui.selectedObject === "") return;
@@ -1394,6 +1397,7 @@ canvas.addEventListener("click",e=>{
                 const objH = obj.h||0;
                 if (clientX>=objX-25&&clientX<=objX+objW&&clientY>=objY-25&&clientY<=objY+objH) {
                         if (gui.selectedObject !== "") selectShapes(obj,objX,objY);
+                        if (gui.selectedObject === "") gui.selectedShape = -1;
                         gui.selectedObject = k;
                         gui.render();
                         break;
@@ -1451,5 +1455,5 @@ document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B3.1";
+const ver = "B4";
 document.title = `GoodForYou v${ver}, Group Nesting!`;
