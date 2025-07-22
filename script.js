@@ -1,3 +1,132 @@
+function openDialog(text,id="dialog") {
+        const dialogTemplate = document.getElementById(id).content;
+        const newDialogMenu = dialogTemplate.querySelector(".dialog").cloneNode(true);
+
+        newDialogMenu.querySelector("#title").textContent = text;
+        document.body.appendChild(newDialogMenu);
+
+        const rect = newDialogMenu.getBoundingClientRect();
+        newDialogMenu.style.left = ((window.innerWidth-rect.width)/2)+"px";
+        newDialogMenu.style.top = ((window.innerHeight-rect.height)/2)+"px";
+
+        const okButton = newDialogMenu.querySelector("#ok");
+        const cancelButton = newDialogMenu.querySelector("#cancel");
+
+        return {newDialogMenu:newDialogMenu,okButton:okButton,cancelButton:cancelButton}
+}
+function confirm(text) {
+        const {newDialogMenu,okButton,cancelButton} = openDialog(text);
+        okButton.style.marginTop = "50px";
+
+        return new Promise(r=>{
+                function exitDialog() {
+                        newDialogMenu.style.animation = "context-menu-hide 200ms";
+                        newDialogMenu.addEventListener("animationend",()=>{newDialogMenu.remove()},{once:true});
+                        okButton.onclick = null;
+                        cancelButton.onclick = null;
+                }
+                okButton.onclick = ()=>{
+                        okButton.style.animation = "context-menu-button-click 200ms";
+                        exitDialog();
+                        r(true);
+                };
+                cancelButton.onclick = ()=>{
+                        cancelButton.style.animation = "context-menu-button-click 200ms";
+                        exitDialog();
+                        r(false);
+                };
+        })
+}
+function alert(text,userSelect=false) {
+        const {newDialogMenu,okButton,cancelButton} = openDialog(text);
+        newDialogMenu.querySelector("#title").style.userSelect = userSelect?"text":"none";
+        if (userSelect) newDialogMenu.querySelector("#title").style.fontFamily = '"Courier New", Courier, monospace';
+        okButton.textContent = "OK";
+        okButton.style.marginTop = "50px";
+        cancelButton.remove();
+
+        return new Promise(r=>{
+                function exitDialog() {
+                        newDialogMenu.style.animation = "context-menu-hide 200ms";
+                        newDialogMenu.addEventListener("animationend",()=>{newDialogMenu.remove()},{once:true});
+                        okButton.onclick = null;
+                        cancelButton.onclick = null;
+                }
+                okButton.onclick = ()=>{
+                        okButton.style.animation = "context-menu-button-click 200ms";
+                        exitDialog();
+                        r(true);
+                };
+        })
+}
+function prompt(text,textarea=false) {
+        const {newDialogMenu,okButton,cancelButton} = openDialog(text,textarea?"textareaprompt":"prompt");
+        okButton.style.marginTop = "50px";
+        let editText
+        editText = newDialogMenu.querySelector("#input");
+
+        return new Promise(r=>{
+                function exitDialog() {
+                        newDialogMenu.style.animation = "context-menu-hide 200ms";
+                        newDialogMenu.addEventListener("animationend",()=>{newDialogMenu.remove()},{once:true});
+                        okButton.onclick = null;
+                        cancelButton.onclick = null;
+                }
+                okButton.onclick = ()=>{
+                        okButton.style.animation = "context-menu-button-click 200ms";
+                        exitDialog();
+                        r(editText.value);
+                };
+                editText.addEventListener("keydown",e=>{
+                        if (e.code !== "Enter") return;
+                        okButton.style.animation = "context-menu-button-click 200ms";
+                        exitDialog();
+                        r(editText.value);
+                });
+                cancelButton.onclick = ()=>{
+                        cancelButton.style.animation = "context-menu-button-click 200ms";
+                        exitDialog();
+                        r("");
+                };
+        })
+}
+
+function _createContextMenu(buttons=[
+        {
+                name: "I am a button!",
+                func: ()=>{console.log("Hello, World!")}
+        }
+],x,y) {
+        const contextMenuTemplate = document.getElementById("contextMenu").content;
+        const contextMenuButtonTemplate = document.getElementById("contextMenuButton").content;
+
+        const newContextMenu = contextMenuTemplate.querySelector(".context-menu").cloneNode(true);
+        newContextMenu.style.position = "fixed";
+        newContextMenu.style.left = x+"px";
+        newContextMenu.style.top = y+"px";
+
+        for (let button of buttons) {
+                const buttonElement = contextMenuButtonTemplate.querySelector(".context-menu-button").cloneNode(true);;
+                buttonElement.textContent = button.name;
+                buttonElement.addEventListener("click",()=>{
+                        buttonElement.style.animation = "context-menu-button-click 200ms";
+                        newContextMenu.style.animation = "context-menu-hide 200ms";
+                        newContextMenu.addEventListener("animationend",()=>{newContextMenu.remove()},{once:true});
+                        button.func();
+                });
+                newContextMenu.appendChild(buttonElement);
+        }
+        const closeButton = contextMenuButtonTemplate.querySelector(".context-menu-button").cloneNode(true);;
+        closeButton.textContent = "Close";
+        closeButton.addEventListener("click",()=>{
+                closeButton.style.animation = "context-menu-button-click 200ms";
+                newContextMenu.style.animation = "context-menu-hide 200ms";
+                newContextMenu.addEventListener("animationend",()=>{newContextMenu.remove()},{once:true});
+        });
+        newContextMenu.appendChild(closeButton);
+        document.body.appendChild(newContextMenu);
+}
+
 const ENUM = {
         RECTANGLE: 0,
         OVAL: 1,
@@ -356,10 +485,10 @@ class GUI {
                 this.selectedObjectSection.style.display = "flex";
 
                 let secondRowFunc = (get)=>{
-                        return get?.shapes
+                        return get?.textContent?[]:(get?.shapes
                         ?? get?.objects
                         ?? get?.frames[get?.state]?.shapes
-                        ?? []
+                        ?? []);
                 }
                 const secondRow = secondRowFunc(this.getSelectedObject());
 
@@ -475,26 +604,16 @@ class GUI {
                 f.textContent = name;
                 f.style.marginRight = "10px";
                 f.style.backgroundColor = "#FFFFFF";
-                f.addEventListener("click",()=>{
-                        Array.from(f.children).forEach(e=>{e.style.display==="block"?e.style.display="none":e.style.display="block";});
-                        f.style.backgroundColor = f.children[0].style.display=="block"?"#a2a2a2ff":"#FFFFFF";
+                f.buttons = []
+                f.style.userSelect = "none";
+                f.addEventListener("click",e=>{
+                        _createContextMenu(f.buttons,e.clientX,e.clientY);
                 })
                 this.dropdownSections.appendChild(f);
         }
         newDropdownFunction(name,func,idx=0) {
                 let f = this.dropdownSections.children[idx];
-                const g = document.createElement("span");
-                g.style.display = "none";
-                g.textContent = name;
-                g.addEventListener("click",()=>{
-                        if (g.style.display !== "block") return;
-                        func()
-                        setTimeout(()=>{
-                                Array.from(f.children).forEach(e=>e.style.display="none");
-                                f.style.backgroundColor = "#FFFFFF";
-                        },300)
-                });
-                f.appendChild(g);
+                f.buttons.push({name:name,func:func})
         }
 
         newSelectedObjFunction(name,func=this.newObject) {
@@ -503,6 +622,8 @@ class GUI {
                 f.addEventListener("click",func);
                 f.style.maxHeight = "48px";
                 this.selectedObjectSection.appendChild(f);
+                if (!this.selectedObjectButtons) this.selectedObjectButtons = [];
+                this.selectedObjectButtons.push({name:name,func:func});
         }
         newSelectedShapeFunction(name,func=this.newObject) {
                 const f = document.createElement("button");
@@ -510,6 +631,8 @@ class GUI {
                 f.addEventListener("click",func);
                 f.style.maxHeight = "48px";
                 this.selectedShapeSection.appendChild(f);
+                if (!this.selectedShapeButtons) this.selectedShapeButtons = [];
+                this.selectedShapeButtons.push({name:name,func:func});
         }
         modifySelectedAttr(config) {
                 if (this.selectedObject === "") return;
@@ -641,18 +764,18 @@ if (window.innerWidth <= 720) gui.newSelectedShapeFunction("Deselect",()=>{
         gui.closeSelectSection();
         setTimeout(()=>gui.openSelectSection(),100);
 });
-gui.newDropdownFunction("Modify Studs",()=>{
-        let input = prompt(`Move objects by... (prev ${gui.movePixels}px)`);
+gui.newDropdownFunction("Modify Studs",async()=>{
+        let input = await prompt(`Move objects by... (prev ${gui.movePixels}px)`);
         input = isNaN(input)?0:Number(input);
         gui.movePixels = input
 });
-gui.newSelectedObjFunction("Modify Studs",()=>{
-        let input = prompt(`Move objects by... (prev ${gui.movePixels}px)`);
+gui.newSelectedObjFunction("Modify Studs",async()=>{
+        let input = await prompt(`Move objects by... (prev ${gui.movePixels}px)`);
         input = isNaN(input)?0:Number(input);
         gui.movePixels = input
 });
-gui.newSelectedShapeFunction("Modify Studs",()=>{
-        let input = prompt(`Move objects by... (prev ${gui.movePixels}px)`);
+gui.newSelectedShapeFunction("Modify Studs",async()=>{
+        let input = await prompt(`Move objects by... (prev ${gui.movePixels}px)`);
         input = isNaN(input)?0:Number(input);
         gui.movePixels = input
 });
@@ -742,21 +865,21 @@ gui.newSelectedShapeFunction("v GO DOWN",()=>{
 });
 gui.newDropdownFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
 gui.newSelectedObjFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
-gui.newSelectedObjFunction("Rotate Object",()=>{
+gui.newSelectedObjFunction("Rotate Object",async()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
-        let inputR = prompt("Rotate by... (Degrees)");
+        let inputR = await prompt("Rotate by... (Degrees)");
         inputR = isNaN(inputR)?0:Number(inputR);
         obj.rotation = inputR
         gui.render();
 });
-gui.newSelectedShapeFunction("Rotate Shape",()=>{
+gui.newSelectedShapeFunction("Rotate Shape",async()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
 
-        let inputR = prompt("Rotate by... (Degrees)");
+        let inputR = await prompt("Rotate by... (Degrees)");
         inputR = isNaN(inputR)?0:Number(inputR);
         obj.rotation = inputR
         gui.render();
@@ -814,13 +937,13 @@ gui.newDropdownFunction("Remove from Group",()=>{
         delete gui.interface.renderer.frames[gui.interface.frame][gui.parent].objects[gui.selectedObject]
         gui.render();
 },1);
-gui.newDropdownFunction("Rename Selected",()=>{
+gui.newDropdownFunction("Rename Selected",async()=>{
         if (gui.selectedObject === "") return;
         if (gui.parent.length > 0) {
-                alert("You cannot rename objects inside of a group");
+                await alert("You cannot rename objects inside of a group");
                 return
         }
-        let input = prompt("Enter a new name!");
+        let input = await prompt("Enter a new name!");
         if (gui.interface.renderer.camera === gui.selectedObject) gui.interface.renderer.camera = input;
         gui.interface.renderer.frames[gui.interface.frame][input!==""?input:gui.selectedObject] = structuredClone(gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]);
         delete gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject];
@@ -828,19 +951,19 @@ gui.newDropdownFunction("Rename Selected",()=>{
         gui.render();
         gui.selectedObjectText.textContent = gui.selectedObject;
 },1);
-gui.newDropdownFunction("Set Sequence State",()=>{
+gui.newDropdownFunction("Set Sequence State",async()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         let obj = gui.getSelectedObject();
         if (obj.shapes) return;
-        obj.state = Number(prompt("Set State To..."));
+        obj.state = Number(await prompt("Set State To..."));
         gui.render();
 },1);
-gui.newDropdownFunction("Set as Camera",()=>{
+gui.newDropdownFunction("Set as Camera",async()=>{
         if (gui.selectedObject === "") return;
         gui.interface.renderer.camera = gui.selectedObject;
         gui.interface.renderer.cameraObj = gui.getSelectedObject();
-        alert("You have set this object as a camera. This object will be duplicated to other frames that don't have the object.")
+        await alert("You have set this object as a camera. This object will be duplicated to other frames that don't have the object.")
         gui.render();
 },1);
 gui.newFunction("Remove Camera",()=>{
@@ -905,11 +1028,11 @@ gui.newDropdownFunction("Export Object",()=>{
         a.click();
         a.remove();
 },1);
-gui.newDropdownFunction("Set Text",()=>{
+gui.newDropdownFunction("Set Text",async()=>{
         const obj = gui.getSelectedObject();
         if (!obj.textContent) return;
         gui.historyStack();
-        obj.textContent = prompt("What should the text be?");
+        obj.textContent = await prompt("What should the text be?");
         gui.render();
 },1);
 gui.newSelectedObjFunction("Size Up Text",()=>{
@@ -987,8 +1110,8 @@ gui.newSelectedObjFunction("Toggle Visibility",()=>{
         obj.visible = !(obj.visible);
         gui.render();
 });
-gui.newDropdownFunction("Export Project (.json)",()=>{
-        let input = prompt("Enter a name!");
+gui.newDropdownFunction("Export Project (.json)",async()=>{
+        let input = await prompt("Enter a name!");
         let jsonFile = JSON.stringify(
                 {
                         projectName: input!==""?input:"My Project!",
@@ -1007,48 +1130,48 @@ gui.newDropdownFunction("Export Project (.json)",()=>{
         a.click();
         a.remove();
 });
-gui.newFunction("Anim Speed",()=>{
-        let input = prompt("Set speed to...");
+gui.newFunction("Anim Speed",async()=>{
+        let input = await prompt("Set speed to...");
         input = isNaN(input)?0.1:Number(input);
         gui.speed = input;
 });
-gui.newDropdownFunction("Move By",()=>{
+gui.newDropdownFunction("Move By",async()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const frames = gui.interface.renderer.frames;
         const frame = frames[gui.interface.frame];
         const obj = gui.getSelectedObject();
 
-        let inputX = prompt("Move X by...");
+        let inputX = await prompt("Move X by...");
         obj.x += isNaN(inputX)?0:Number(inputX);
-        let inputY = prompt("Move Y by...");
+        let inputY = await prompt("Move Y by...");
         obj.y += isNaN(inputY)?0:Number(inputY);
 
         gui.interface.render();
 },1);
-gui.newDropdownFunction("Move To",()=>{
+gui.newDropdownFunction("Move To",async()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
-        let inputX = prompt("Move X to...");
+        let inputX = await prompt("Move X to...");
         inputX = isNaN(inputX)?0:Number(inputX)
-        let inputY = prompt("Move Y to...");
+        let inputY = await prompt("Move Y to...");
         inputY = isNaN(inputY)?0:Number(inputY)
         
         gui.modifySelectedAttr({x:inputX,y:inputY})
 },1);
-gui.newDropdownFunction("Debug Selected",()=>{
+gui.newDropdownFunction("Debug Selected",async()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
-        alert(JSON.stringify(obj,null,2));
+        await alert(JSON.stringify(obj,null,2),true);
 },1);
-gui.newDropdownFunction("Debug Everything",()=>{
+gui.newDropdownFunction("Debug Everything",async()=>{
         const obj = {
                 renderer: gui.interface.renderer,
                 interface: gui.interface,
                 gui: gui
         };
-        alert(JSON.stringify(obj,null,2));
+        await alert(JSON.stringify(obj,null,2),true);
 });
 gui.newFunction("< Frame",()=>{
         if (gui.interface.frame == 0) return;
@@ -1188,10 +1311,10 @@ gui.newDropdownFunction("Paste",()=>{
         frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
         gui.render();
 },2);
-gui.newDropdownFunction("Rename Selected",()=>{
+gui.newDropdownFunction("Rename Selected",async()=>{
         if (gui.selectedShape < 0) return;
         gui.historyStack();
-        let input = prompt("Enter a new name!");
+        let input = await prompt("Enter a new name!");
         const frame = gui.interface.renderer.frames[gui.interface.frame];
         if (frame[gui.selectedObject].frames) {
                 frame[gui.selectedObject].frames[frame[gui.selectedObject].state].shapes[gui.selectedShape].name = input;
@@ -1203,12 +1326,12 @@ gui.newDropdownFunction("Rename Selected",()=>{
         gui.render();
         gui.updateObjectSelectionText();
 },2);
-gui.newSelectedShapeFunction("Size By",()=>{
+gui.newSelectedShapeFunction("Size By",async()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
-        let inputW = prompt("Size Shape Width By...");
+        let inputW = await prompt("Size Shape Width By...");
         inputW = isNaN(inputW)?0:Number(inputW);
-        let inputH = prompt("Size Shape Height By...");
+        let inputH = await prompt("Size Shape Height By...");
         inputH = isNaN(inputH)?0:Number(inputH);
 
         if (gui.getSelectedObject().frames) {
@@ -1223,12 +1346,12 @@ gui.newSelectedShapeFunction("Size By",()=>{
         gui.getSelectedObject().shapes[gui.selectedShape].h += inputH;
         gui.render();
 });
-gui.newSelectedShapeFunction("Size To",()=>{
+gui.newSelectedShapeFunction("Size To",async()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
-        let inputW = prompt("Size Shape Width To...");
+        let inputW = await prompt("Size Shape Width To...");
         inputW = isNaN(inputW)?0:Number(inputW);
-        let inputH = prompt("Size Shape Height To...");
+        let inputH = await prompt("Size Shape Height To...");
         inputH = isNaN(inputH)?0:Number(inputH);
 
         if (gui.getSelectedObject().frames) {
@@ -1241,12 +1364,12 @@ gui.newSelectedShapeFunction("Size To",()=>{
         gui.getSelectedObject().shapes[gui.selectedShape].h = inputH;
         gui.render();
 });
-gui.newDropdownFunction("Shift By",()=>{
+gui.newDropdownFunction("Shift By",async()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
-        let inputW = prompt("Shift Shape X By...");
+        let inputW = await prompt("Shift Shape X By...");
         inputW = isNaN(inputW)?0:Number(inputW);
-        let inputH = prompt("Shift Shape Y By...");
+        let inputH = await prompt("Shift Shape Y By...");
         inputH = isNaN(inputH)?0:Number(inputH);
 
         if (gui.getSelectedObject().frames) {
@@ -1259,12 +1382,12 @@ gui.newDropdownFunction("Shift By",()=>{
         gui.getSelectedObject().shapes[gui.selectedShape].y += inputH;
         gui.render();
 },2);
-gui.newDropdownFunction("Shift To",()=>{
+gui.newDropdownFunction("Shift To",async()=>{
         if (gui.selectedObject === "" && gui.selectedShape < 0) return;
         gui.historyStack();
-        let inputW = prompt("Shift Shape X To...");
+        let inputW = await prompt("Shift Shape X To...");
         inputW = isNaN(inputW)?0:Number(inputW);
-        let inputH = prompt("Shift Shape Y To...");
+        let inputH = await prompt("Shift Shape Y To...");
         inputH = isNaN(inputH)?0:Number(inputH);
 
         gui.getSelectedObject().shapes[gui.selectedShape].x = inputW;
@@ -1296,11 +1419,23 @@ gui.newDropdownFunction("Change Color",()=>{
                 colorPicker.remove();
         })
 },2);
-gui.newFunction("Modify Attributes",()=>{
+gui.newFunction("Modify Attributes",async()=>{
+        if (gui.selectedObject) return;
+        gui.historyStack();
+        const shape = gui.getSelectedObject();
+        const config = JSON.parse(await prompt(`Enter a JSON string to modify attributes!\nDon't know what to do?\nTry opening console and typing in "gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject]" to get the properties of the shape!`,true));
+        
+        for (let key in config) {
+                shape[key] = config[key];
+        }
+        
+        gui.render();
+},1);
+gui.newFunction("Modify Attributes",async()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
         const shape = gui.getSelectedObject().shapes[gui.selectedShape];
-        const config = JSON.parse(prompt(`Enter a JSON string to modify attributes!\nDon't know what to do?\nTry opening console and typing in "gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject].shapes[gui.selectedShape]" to get the properties of the shape!`));
+        const config = JSON.parse(await prompt(`Enter a JSON string to modify attributes!\nDon't know what to do?\nTry opening console and typing in "gui.interface.renderer.frames[gui.interface.frame][gui.selectedObject].shapes[gui.selectedShape]" to get the properties of the shape!`,true));
         
         for (let key in config) {
                 shape[key] = config[key];
@@ -1367,12 +1502,10 @@ gui.shapesSection = document.createElement("div");
 gui.selectedObjectSection.style.display = "none";
 gui.selectedShapeSection.style.display = "none";
 
-canvas.addEventListener("click",e=>{
-        console.log("LOGD")
+function onClick(e,sh=false){
         const canvRect = canvas.getBoundingClientRect();
         let clientX = e.clientX-canvRect.left;
         let clientY = e.clientY-canvRect.top;
-        console.log(clientX,clientY)
         const frame = gui.interface.renderer.frames[gui.interface.frame]
         let cam = frame[gui.interface.renderer.camera]?frame[gui.interface.renderer.camera]:{x:0,y:0};
         function selectShapes(obj,objX,objY) {
@@ -1396,14 +1529,29 @@ canvas.addEventListener("click",e=>{
                 const objW = obj.w||0;
                 const objH = obj.h||0;
                 if (clientX>=objX-25&&clientX<=objX+objW&&clientY>=objY-25&&clientY<=objY+objH) {
-                        if (gui.selectedObject !== "") selectShapes(obj,objX,objY);
+                        if (sh) selectShapes(obj,objX,objY);
                         if (gui.selectedObject === "") gui.selectedShape = -1;
                         gui.selectedObject = k;
                         gui.render();
-                        break;
+                        return true;
                 }
         }
-});
+        return false
+};
+canvas.addEventListener("click",onClick)
+canvas.addEventListener("dblclick",e=>{onClick(e,true)})
+canvas.addEventListener("contextmenu",e=>{
+        e.preventDefault();
+        if (!onClick(e)) {
+                _createContextMenu(gui.dropdownSections.children[0].buttons,e.clientX,e.clientY);
+                return
+        }
+        if (gui.selectedShape>-1) {
+                _createContextMenu(gui.selectedShapeButtons,e.clientX,e.clientY);
+                return
+        }
+        _createContextMenu(gui.selectedObjectButtons,e.clientX,e.clientY);
+})
 
 document.body.style.padding = "20px";
 document.body.style.display = "flex";
@@ -1440,7 +1588,33 @@ hierarchySection.appendChild(gui.selectedObjectSection);
 hierarchySection.appendChild(gui.selectedShapeSection);
 
 const initializeBody = ()=>{
-        document.body.innerHTML = '';
+        document.body.innerHTML = `<template id="dialog">
+        <div class="dialog">
+            <b class="context-menu-button" id="title">Are you sure?</b>
+            <span class="context-menu-button" id="ok">Yes, I'm sure</span>
+            <span class="context-menu-button" id="cancel">Nevermind</span>
+        </div>
+    </template>
+    <template id="prompt">
+        <div class="dialog">
+            <b class="context-menu-button" id="title">This is requesting input!</b>
+            <input placeholder="Enter something!" id="input"/>
+            <span class="context-menu-button" id="ok">Enter</span>
+            <span class="context-menu-button" id="cancel">Cancel</span>
+        </div>
+    </template><template id="contextMenuButton">
+        <span class="context-menu-button">Import Project</span>
+    </template>
+    <template id="contextMenu">
+        <div class="context-menu"></div>
+    </template><template id="textareaprompt">
+        <div class="dialog">
+            <b class="context-menu-button" id="title">This is requesting input!</b>
+            <textarea placeholder="" id="input">{"x":10}</textarea>
+            <span class="context-menu-button" id="ok">Enter</span>
+            <span class="context-menu-button" id="cancel">Cancel</span>
+        </div>
+    </template>`;
         gui.updateObjectSelectionText();
         edit.appendChild(gui.selectedObjectText);
         edit.appendChild(gui.currentFrameText);
@@ -1450,10 +1624,16 @@ const initializeBody = ()=>{
         document.body.appendChild(gui.dropdownSections);
         document.body.appendChild(edit);
         gui.render();
+        for (let button in document.getElementsByTagName("button")) {
+                button.addEventListener("click",()=>{
+                        button.style.animation = "context-menu-button-click 200ms";
+                        button.addEventListener("animationend",()=>button.style.animation = "",{once:true});
+                })
+        }
 };
 document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B4";
+const ver = "B5";
 document.title = `GoodForYou v${ver}, Group Nesting!`;
