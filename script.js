@@ -40,7 +40,6 @@ function confirm(text) {
 function alert(text,userSelect=false) {
         const {newDialogMenu,okButton,cancelButton} = openDialog(text);
         newDialogMenu.querySelector("#title").style.userSelect = userSelect?"text":"none";
-        if (userSelect) newDialogMenu.querySelector("#title").style.fontFamily = '"Courier New", Courier, monospace';
         okButton.textContent = "OK";
         okButton.style.marginTop = "50px";
         cancelButton.remove();
@@ -64,6 +63,7 @@ function prompt(text,textarea=false) {
         okButton.style.marginTop = "50px";
         let editText
         editText = newDialogMenu.querySelector("#input");
+        editText.focus();
 
         return new Promise(r=>{
                 function exitDialog() {
@@ -182,7 +182,6 @@ class Renderer {
         cameraObj = undefined;
         selectedObject = "";
         selectedShape = -1;
-        parent = [];
 
         constructor(canvas) {
                 this.canvas = canvas;
@@ -198,6 +197,7 @@ class Renderer {
 
                 ctx.fillStyle = this.backgroundColor;
                 ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+
                 const drawShape = (shape,objX,objY,selected,idx) => {
                         if (!shape.color) shape.color = "rgb(0,0,0)";
                         if (!shape.rotation) shape.rotation = 0;
@@ -225,77 +225,36 @@ class Renderer {
                 }
                 const drawObject = (object,offsetX=0,offsetY=0,selected,rotationOffset=0) => {
                         if (object.visible == false) return;
-                        if (!object.rotation) object.rotation = 0;
-                        if (!object.shapes && object.frames) {
-                                drawObject(object.frames[object.state],object.x,object.y,selected);
-                                return;
-                        }
-                        if (object.objects && !object.textContent) {
-                                let groupX = object.x + offsetX-cam.x;
-                                let groupY = object.y + offsetY-cam.y;
-                                this.ctx.save();
-                                const firstChild = object.objects[Object.keys(object.objects)[0]]||{x:0,y:0};
-                                const groupCenterX = groupX+firstChild.x;
-                                const groupCenterY = groupY+firstChild.y;
-                                this.ctx.translate(groupCenterX,groupCenterY);
-                                this.ctx.rotate((object.rotation+rotationOffset)*Math.PI/180);
-                                this.ctx.translate(-groupCenterX,-groupCenterY);
-                                for (let idx in object.objects) drawObject(object.objects[idx],object.x,object.y,selected,0);
-                                this.ctx.restore();
-                                return;
-                        }
-                        let objW = 0;
-                        let objH = 0;
+                        if (!object?.rotation && !object?.objects) object.rotation = 0;
+                        const ctx = this.ctx;
+                        ctx.save();
+                        ctx.translate(object.x+offsetX-cam.x,object.y+offsetY-cam.y);
+                        ctx.rotate((object.rotation+rotationOffset)*Math.PI/180);
+                        ctx.translate(-object.x+offsetX-cam.x,-object.y+offsetY-cam.y);
 
-                        let minX = 0;
-                        let maxX = 0;
-                        let minY = 0;
-                        let maxY = 0;
-                        for (let shape of (object.shapes||[])) {
-                                minX = Math.min(shape.w,shape.x+objW);
-                                minY = Math.min(shape.h,shape.y+objH);
-                                maxX = Math.max(shape.w,shape.x+objW);
-                                maxY = Math.max(shape.h,shape.y+objH);
-                        }
-                        object.w = maxX-minX;
-                        object.h = maxY-minY;
-
-                        let objX = object.x+offsetX-cam.x;
-                        let objY = object.y+offsetY-cam.y;
-
-                        let i = 0;
-                        this.ctx.save();
-
-                        this.ctx.font = object.fontSize+"px Roboto";
-                        if (object.w < 1 && object.textContent) {
-                                let metrics = ctx.measureText(object.textContent);
-                                object.w = metrics.width;
-                                object.h = object.fontSize;
-                        }
-                        const centerX = objX + objW/2;
-                        const centerY = objY + objH/2;
-
-                        this.ctx.translate(centerX,centerY);
-                        this.ctx.rotate((object.rotation+rotationOffset)*Math.PI/180);
-                        this.ctx.translate(-centerX,-centerY);
-
-                        if (object.textContent) {
-                                this.ctx.fillStyle = object.color;
-                                this.ctx.fillText(object.textContent,objX-object.w/2,objY);
-                                this.ctx.restore();
+                        if (object?.textContent) {
+                                ctx.fillStyle = object.color;
+                                ctx.font = obj.fontSize+"px Roboto";
+                                ctx.fillText(object.textContent,object.x,object.y);
+                                ctx.restore();
                                 return
                         }
-
-                        for (let shape of object.shapes) {
-                                this.ctx.save();
-                                this.ctx.translate(centerX,centerY);
-                                this.ctx.rotate((shape.rotation+rotationOffset)*Math.PI/180);
-                                this.ctx.translate(-centerX,-centerY);
-                                drawShape(shape,objX,objY,selected,i);
-                                this.ctx.restore();
-                                i++;
+                        if (object?.objects) {
+                                for (let key in object?.objects) {
+                                        const obj = object?.objects?.[key];
+                                        drawObject(obj,0,0,selected,0);
+                                }
+                                ctx.restore();
+                                return
                         }
-                        this.ctx.restore();
+                        if (object?.shapes) {
+                                for (let key in object?.shapes) {
+                                        let shape = object?.shapes?.[key];
+                                        drawShape(shape,object.x,object.y,selected,this.selectedShape&&this.selectedShape==key);
+                                }
+                                ctx.restore();
+                                return
+                        }
                 }
 
                 this.ctx.save();
@@ -427,6 +386,20 @@ class GUI {
         constructor(interface_) {
                 this.interface = interface_;
         }
+        imageButton(textContent="ImageButton",img="./object.png",onclick) {
+                const btn = document.createElement("button");
+                btn.style.display = "flex";
+                btn.style.flexDirection = "row";
+                btn.style.alignItems = "center";
+                const image = document.createElement("img");
+                image.src = img;
+                image.style.width = "32px";
+                image.style.height = "32px";
+                btn.addEventListener("click",onclick);
+                btn.appendChild(image);
+                btn.appendChild(document.createTextNode(textContent));
+                return btn
+        }
         updateObjects() {
                 this.shapesSection.style.display = "none";
                 this.objectsSection.style.display = "none";
@@ -465,16 +438,33 @@ class GUI {
                 if (Object.keys(firstRow).length<1) return;
                 this.objectsSection.style.display = "flex";
                 for (let objName in firstRow) {
-                        const f = document.createElement("button");
-                        f.textContent = objName;
-                        f.addEventListener("click",()=>{
+                        let img;
+                        switch(firstRow[objName]?.shapes&&firstRow[objName]?.shapes?.[0]?.type) {
+                                case 0:
+                                        img = "./square-box.png";
+                                        break;
+                                case 1:
+                                        img = "./circle.png";
+                                        break;
+                                case 2:
+                                        img = "./triangle.png";
+                                        break;
+                                default:
+                                        img = firstRow[objName]?.frames
+                                        ?"./layers.png"
+                                        :firstRow[objName]?.objects
+                                                ?"./group.png":
+                                        firstRow[objName]?.shapes?firstRow[objName]?.shapes.length<1?"./frame.png":"./object.png":"./object.png"
+                                        
+                        }
+                        const f = this.imageButton(objName,img,()=>{
                                 if (this.parent.indexOf(f.textContent)>-1) {
                                         this.parent.pop();
                                 }
                                 this.selectedObject = f.textContent;
                                 this.render();
-                                this.updateObjectSelectionText();
-                        })
+                                this.﻿updateObjectSelectionText();
+                        });
                         this.objectsSection.appendChild(f);
                 }
 
@@ -494,12 +484,28 @@ class GUI {
 
                 if (Object.keys(secondRow).length<1) return;
                 for (let objName in secondRow) {
-                        const f = document.createElement("button");
-
-                        const shapeTester = secondRow[objName]?.name
-                        f.textContent = shapeTester?shapeTester:objName;
+                        let img;
+                        switch(secondRow[objName]?.shapes?secondRow[objName]?.shapes?.[0]?.type:secondRow[objName]?.type) {
+                                case 0:
+                                        img = "./square-box.png";
+                                        break;
+                                case 1:
+                                        img = "./circle.png";
+                                        break;
+                                case 2:
+                                        img = "./triangle.png";
+                                        break;
+                                default:
+                                        img = secondRow[objName]?.frames
+                                        ?"./layers.png"
+                                        :secondRow[objName]?.objects
+                                                ?"./group.png":
+                                        secondRow[objName]?.shapes?secondRow[objName]?.shapes.length<1?"./frame.png":"./object.png":"./object.png"
+                                        
+                        }
+                        const shapeTester = secondRow[objName]?.name;
                         let cache = objName;
-                        f.addEventListener("click",()=>{
+                        const f = this.imageButton(shapeTester?secondRow[objName]?.name:objName,img,()=>{
                                 if (shapeTester) {
                                         this.selectedShape = cache;
                                 } else {
@@ -508,7 +514,7 @@ class GUI {
                                 }
                                 this.render();
                                 this.updateObjectSelectionText();
-                        })
+                        });
 
                         this.shapesSection.appendChild(f);
                 }
@@ -604,32 +610,29 @@ class GUI {
                 f.textContent = name;
                 f.style.marginRight = "10px";
                 f.style.backgroundColor = "#FFFFFF";
+                f.style.fontSize = "larger";
                 f.buttons = []
                 f.style.userSelect = "none";
                 f.addEventListener("click",e=>{
                         _createContextMenu(f.buttons,e.clientX,e.clientY);
                 })
                 this.dropdownSections.appendChild(f);
+                this.dropdownSections.style.height = "48px"
+                this.dropdownSections.style.alignItems = "center"
         }
         newDropdownFunction(name,func,idx=0) {
                 let f = this.dropdownSections.children[idx];
                 f.buttons.push({name:name,func:func})
         }
 
-        newSelectedObjFunction(name,func=this.newObject) {
-                const f = document.createElement("button");
-                f.textContent = name;
-                f.addEventListener("click",func);
-                f.style.maxHeight = "48px";
+        newSelectedObjFunction(name,func=this.newObject,image="./frame.png") {
+                const f = this.imageButton(name,image,func);
                 this.selectedObjectSection.appendChild(f);
                 if (!this.selectedObjectButtons) this.selectedObjectButtons = [];
                 this.selectedObjectButtons.push({name:name,func:func});
         }
-        newSelectedShapeFunction(name,func=this.newObject) {
-                const f = document.createElement("button");
-                f.textContent = name;
-                f.addEventListener("click",func);
-                f.style.maxHeight = "48px";
+        newSelectedShapeFunction(name,func=this.newObject,image="./frame.png") {
+                const f = this.imageButton(name,image,func);
                 this.selectedShapeSection.appendChild(f);
                 if (!this.selectedShapeButtons) this.selectedShapeButtons = [];
                 this.selectedShapeButtons.push({name:name,func:func});
@@ -769,24 +772,14 @@ gui.newDropdownFunction("Modify Studs",async()=>{
         input = isNaN(input)?0:Number(input);
         gui.movePixels = input
 });
-gui.newSelectedObjFunction("Modify Studs",async()=>{
-        let input = await prompt(`Move objects by... (prev ${gui.movePixels}px)`);
-        input = isNaN(input)?0:Number(input);
-        gui.movePixels = input
-});
-gui.newSelectedShapeFunction("Modify Studs",async()=>{
-        let input = await prompt(`Move objects by... (prev ${gui.movePixels}px)`);
-        input = isNaN(input)?0:Number(input);
-        gui.movePixels = input
-});
-gui.newSelectedObjFunction("< GO LEFT",()=>{
+gui.newSelectedObjFunction("GO LEFT",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
         obj.x -= gui.movePixels;
         gui.render();
-});
-gui.newSelectedShapeFunction("< GO LEFT",()=>{
+},"./funcIcons/left-arrow.png");
+gui.newSelectedShapeFunction("GO LEFT",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
         let temp = gui.getSelectedObject();
@@ -799,15 +792,15 @@ gui.newSelectedShapeFunction("< GO LEFT",()=>{
         let obj = temp.shapes[gui.selectedShape];
         obj.x -= gui.movePixels;
         gui.render();
-});
-gui.newSelectedObjFunction("GO RIGHT >",()=>{
+},"./funcIcons/left-arrow.png");
+gui.newSelectedObjFunction("GO RIGHT",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
         obj.x += gui.movePixels;
         gui.render();
-});
-gui.newSelectedShapeFunction("GO RIGHT >",()=>{
+},"./funcIcons/right-arrow.png");
+gui.newSelectedShapeFunction("GO RIGHT",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
         let temp = gui.getSelectedObject();
@@ -820,15 +813,15 @@ gui.newSelectedShapeFunction("GO RIGHT >",()=>{
         let obj = temp.shapes[gui.selectedShape];
         obj.x += gui.movePixels;
         gui.render();
-});
-gui.newSelectedObjFunction("^ GO UP",()=>{
+},"./funcIcons/right-arrow.png");
+gui.newSelectedObjFunction("GO UP",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
         obj.y -= gui.movePixels;
         gui.render();
-});
-gui.newSelectedShapeFunction("^ GO UP",()=>{
+},"./funcIcons/up-chevron.png");
+gui.newSelectedShapeFunction("GO UP",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
         let temp = gui.getSelectedObject();
@@ -841,14 +834,14 @@ gui.newSelectedShapeFunction("^ GO UP",()=>{
         let obj = temp.shapes[gui.selectedShape];
         obj.y -= gui.movePixels;
         gui.render();
-});
+},"./funcIcons/up-chevron.png");
 gui.newSelectedObjFunction("v GO DOWN",()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
         const obj = gui.getSelectedObject();
         obj.y += gui.movePixels;
         gui.render();
-});
+},"./funcIcons/chevron.png");
 gui.newSelectedShapeFunction("v GO DOWN",()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
@@ -862,9 +855,9 @@ gui.newSelectedShapeFunction("v GO DOWN",()=>{
         let obj = temp.shapes[gui.selectedShape];
         obj.y += gui.movePixels;
         gui.render();
-});
+},"./funcIcons/chevron.png");
 gui.newDropdownFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
-gui.newSelectedObjFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()});
+gui.newSelectedObjFunction("Delete Selected",()=>{gui.removeSelected();gui.selectedObjectSection.style.display="none";gui.render()},"./funcIcons/close.png");
 gui.newSelectedObjFunction("Rotate Object",async()=>{
         if (gui.selectedObject === "") return;
         gui.historyStack();
@@ -873,7 +866,7 @@ gui.newSelectedObjFunction("Rotate Object",async()=>{
         inputR = isNaN(inputR)?0:Number(inputR);
         obj.rotation = inputR
         gui.render();
-});
+},"./funcIcons/rotate.png");
 gui.newSelectedShapeFunction("Rotate Shape",async()=>{
         if (gui.selectedObject === "" || gui.selectedShape < 0) return;
         gui.historyStack();
@@ -883,7 +876,7 @@ gui.newSelectedShapeFunction("Rotate Shape",async()=>{
         inputR = isNaN(inputR)?0:Number(inputR);
         obj.rotation = inputR
         gui.render();
-})
+},"./funcIcons/rotate.png")
 gui.newDropdownFunction("Copy",()=>{
         if (gui.selectedObject === "") {
                 gui.interface.objectClipboard = {};
@@ -912,6 +905,16 @@ gui.newDropdownFunction("Paste",()=>{
         delete frame[gui.interface.objectClipboard.name].name;
         gui.render();
 },1);
+gui.newSelectedObjFunction("Paste",()=>{
+        if (Object.keys(gui.interface.objectClipboard).length<1) return;
+        gui.historyStack();
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        while (frame[gui.interface.objectClipboard.name]) gui.interface.objectClipboard.name += "Copy";
+
+        frame[gui.interface.objectClipboard.name] = gui.interface.objectClipboard
+        delete frame[gui.interface.objectClipboard.name].name;
+        gui.render();
+},"./funcIcons/clipboard.png");
 gui.newDropdownFunction("Paste > Sequence State",()=>{
         if (gui.selectedObject === "" || Object.keys(gui.interface.objectClipboard).length<1) return;
         gui.historyStack();
@@ -1177,6 +1180,7 @@ gui.newFunction("< Frame",()=>{
         if (gui.interface.frame == 0) return;
         gui.parent = [];
         gui.selectedObject = "";
+        gui.selectedShape = -1;
         gui.interface.frame--;
         gui.render()
 });
@@ -1184,6 +1188,7 @@ gui.newFunction("Frame >",()=>{
         if (gui.interface.frame == gui.interface.renderer.frames.length-1) return;
         gui.parent = [];
         gui.selectedObject = "";
+        gui.selectedShape = -1;
         gui.interface.frame++;
         gui.render();
 });
@@ -1191,6 +1196,7 @@ gui.newFunction("+ Frame",()=>{
         gui.interface.createNewFrame();
         gui.parent = [];
         gui.selectedObject = "";
+        gui.selectedShape = -1;
         gui.render();
 });
 gui.newFunction("Play/Stop",()=>{
@@ -1311,6 +1317,13 @@ gui.newDropdownFunction("Paste",()=>{
         frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
         gui.render();
 },2);
+gui.newSelectedShapeFunction("Paste",()=>{
+        if (Object.keys(gui.interface.shapeClipboard).length<1) return;
+        gui.historyStack();
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
+        frame[gui.selectedObject].shapes.push(gui.interface.shapeClipboard);
+        gui.render();
+},"./funcIcons/clipboard.png");
 gui.newDropdownFunction("Rename Selected",async()=>{
         if (gui.selectedShape < 0) return;
         gui.historyStack();
@@ -1492,6 +1505,9 @@ gui.newSelectedShapeFunction("Move up",()=>{
         gui.render();
 });
 gui.newDropdownFunction("Undo",()=>gui.popHistoryStack());
+gui.newFunction("Attributes",async()=>{
+        await alert("If you have claustrophobia maybe this'll anger you................ Shapes (https://icons8.com/icon/muCPzbZuridA/geometric-figures), Object (https://icons8.com/icon/98120/sphere), and Canvas (https://icons8.com/icon/92317/flipboard) Icons from Icons8.............           \nSquare by Judanna from Flaticon (https://www.flaticon.com/free-icon/square-box_7151973).............         \nSquare by Freepik (https://www.flaticon.com/free-icon/bleach_481058).............    \nGroup by juicy_fish (https://www.flaticon.com/free-icon/group_7163554).............      \nboth Layers (https://www.flaticon.com/free-icon/layers_17406294) and Empty (https://www.flaticon.com/free-icon/frame_18384126) icons by meaicon............. chevron left (https://www.flaticon.com/free-icon/left-arrow_271220) and right (https://www.flaticon.com/free-icon/right-arrow_271228) by RoundIcons............. down chevron by fathema khanom (https://www.flaticon.com/free-icon/chevron_10009171)............. up chevron by Elite Art (https://www.flaticon.com/free-icon/up-chevron_14441425)........ the rest come from humble google fonts",true)
+})
 
 gui.selectedObjectText = document.createElement("span");
 gui.currentFrameText = document.createElement("span");
@@ -1553,6 +1569,7 @@ canvas.addEventListener("contextmenu",e=>{
         _createContextMenu(gui.selectedObjectButtons,e.clientX,e.clientY);
 })
 
+
 document.body.style.padding = "20px";
 document.body.style.display = "flex";
 document.body.style.flexDirection = "column";
@@ -1582,6 +1599,7 @@ gui.selectedObjectSection.style.flexDirection = "column";
 gui.selectedShapeSection.style.height = "100px";
 gui.selectedShapeSection.style.overflowY = "scroll";
 gui.selectedShapeSection.style.flexDirection = "column";
+gui.dropdownSections.style.backgroundColor = "white";
 hierarchySection.appendChild(gui.objectsSection);
 hierarchySection.appendChild(gui.shapesSection);
 hierarchySection.appendChild(gui.selectedObjectSection);
@@ -1590,7 +1608,7 @@ hierarchySection.appendChild(gui.selectedShapeSection);
 const initializeBody = ()=>{
         document.body.innerHTML = `<template id="dialog">
         <div class="dialog">
-            <b class="context-menu-button" id="title">Are you sure?</b>
+            <p class="context-menu-button" id="title">Are you sure?</p>
             <span class="context-menu-button" id="ok">Yes, I'm sure</span>
             <span class="context-menu-button" id="cancel">Nevermind</span>
         </div>
@@ -1615,16 +1633,19 @@ const initializeBody = ()=>{
             <span class="context-menu-button" id="cancel">Cancel</span>
         </div>
     </template>`;
+        document.body.style.padding = "0px";
         gui.updateObjectSelectionText();
         edit.appendChild(gui.selectedObjectText);
         edit.appendChild(gui.currentFrameText);
         edit.appendChild(functionHolder);
         edit.appendChild(canvas);
+        canvas.style.alignSelf = "center";
         edit.appendChild(hierarchySection);
+        edit.style.alignItems = "center";
         document.body.appendChild(gui.dropdownSections);
         document.body.appendChild(edit);
         gui.render();
-        for (let button in document.getElementsByTagName("button")) {
+        for (let button of document.getElementsByTagName("button")) {
                 button.addEventListener("click",()=>{
                         button.style.animation = "context-menu-button-click 200ms";
                         button.addEventListener("animationend",()=>button.style.animation = "",{once:true});
@@ -1635,5 +1656,5 @@ document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B5";
+const ver = "B6";
 document.title = `GoodForYou v${ver}, Group Nesting!`;
