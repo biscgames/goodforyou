@@ -5,6 +5,8 @@ function openDialog(text,id="dialog") {
         newDialogMenu.querySelector("#title").textContent = text;
         document.body.appendChild(newDialogMenu);
 
+        if (window.innerWidth<720) newDialogMenu.style.width = (window.innerWidth-20)+"px"
+
         const rect = newDialogMenu.getBoundingClientRect();
         newDialogMenu.style.left = ((window.innerWidth-rect.width)/2)+"px";
         newDialogMenu.style.top = ((window.innerHeight-rect.height)/2)+"px";
@@ -1656,5 +1658,5 @@ document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
 let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B6";
+const ver = "B6.1";
 document.title = `GoodForYou v${ver}, Group Nesting!`;
