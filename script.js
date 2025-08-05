@@ -151,6 +151,17 @@ class Shape {
                 this.h = h;
         }
 }
+class DrawingShape extends Shape {
+        drawingShape = true;
+        color = "rgb(0,0,0)";
+        rotation = 0;
+        lineWidth = 2;
+        constructor(path2D) {
+                super(undefined,0,0,undefined,undefined);
+                this.path = new Path2D;
+                this.path.addPath(path2D);
+        }
+}
 
 class Object_ {
         shapes = []; // : Shape
@@ -184,6 +195,7 @@ class Renderer {
         cameraObj = undefined;
         selectedObject = "";
         selectedShape = -1;
+        drawing = null;
 
         constructor(canvas) {
                 this.canvas = canvas;
@@ -213,10 +225,20 @@ class Renderer {
                         }}
                         let shapeX = objX + shape.x;
                         let shapeY = objY + shape.y;
-                        func[shape.type](shapeX,shapeY,shape.w,shape.h);
-                        path.closePath();
-                        ctx.fill(path);
-
+                        if (!shape.drawingShape) {
+                                func[shape.type](shapeX,shapeY,shape.w,shape.h);
+                                path.closePath();
+                                if (!JANITOR) console.log("Drawing shape", shape);
+                                ctx.fill(path);
+                        }
+                        else {
+                                ctx.save();
+                                ctx.translate(shapeX,shapeY);
+                                path.addPath(shape.path);
+                                ctx.lineWidth = shape.lineWidth||5;
+                                ctx.stroke(path);
+                        }
+                        if (shape.drawingShape) ctx.restore();
                         if (!selected) return;
                         if (this.selectedShape > -1 && this.selectedShape != idx) return;
                         
@@ -236,7 +258,7 @@ class Renderer {
 
                         if (object?.textContent) {
                                 ctx.fillStyle = object.color;
-                                ctx.font = obj.fontSize+"px Roboto";
+                                ctx.font = object.fontSize+"px Roboto";
                                 ctx.fillText(object.textContent,object.x,object.y);
                                 ctx.restore();
                                 return
@@ -249,7 +271,7 @@ class Renderer {
                                 ctx.restore();
                                 return
                         }
-                        if (object?.shapes) {
+                        if (object?.shapes && Array.isArray(object?.shapes)) {
                                 for (let key in object?.shapes) {
                                         let shape = object?.shapes?.[key];
                                         drawShape(shape,object.x,object.y,selected,this.selectedShape&&this.selectedShape==key);
@@ -262,6 +284,11 @@ class Renderer {
                 this.ctx.save();
                 this.ctx.translate(this.canvas.width/2,this.canvas.height/2);
                 Object.entries(objects).forEach(([key,object])=>drawObject(object,0,0,key===this.selectedObject));
+                if (this.drawing) {
+                        ctx.strokeStyle = "black";
+                        ctx.lineWidth = 2;
+                        ctx.stroke(this.drawing);
+                }
                 this.ctx.restore();
         }
 
@@ -385,6 +412,7 @@ class GUI {
         objShapeContainer = undefined;
         history = [];
         dropdownSections = undefined;
+        drawMode = false;
         constructor(interface_) {
                 this.interface = interface_;
         }
@@ -525,6 +553,7 @@ class GUI {
                 this.selectedShapeSection.style.display = "flex";
         }
         getSelectedObject() {
+                if (this.selectedObject === "") return undefined;
                 let path = this.interface.renderer.frames[this.interface.frame];
                 let getSelected = ()=> {
                         path = path[this.selectedObject];
@@ -549,11 +578,14 @@ class GUI {
                 this.updateObjects();
         }
         historyStack() {
-                if (this.history.length >= 5) return;
-                this.history.push({
-                        frame: this.interface.frame,
-                        objects: structuredClone(this.interface.renderer.frames[this.interface.frame]),
-                });
+                try {
+                        if (this.history.length >= 5) return;
+                        this.history.push({
+                                frame: this.interface.frame,
+                                objects: structuredClone(this.interface.renderer.frames[this.interface.frame]),
+                        });
+                } catch (e) {
+                }
         }
         popHistoryStack() { // (aka undo)
                 if (this.history.length <= 0) return;
@@ -1507,6 +1539,9 @@ gui.newSelectedShapeFunction("Move up",()=>{
         gui.render();
 });
 gui.newDropdownFunction("Undo",()=>gui.popHistoryStack());
+gui.newDropdownCategory("Drawing");
+gui.newDropdownFunction("Enable Draw Mode",()=>gui.drawMode = true,3)
+gui.newDropdownFunction("Disable Draw Mode",()=>gui.drawMode = false,3)
 gui.newFunction("Attributes",async()=>{
         await alert("If you have claustrophobia maybe this'll anger you................ Shapes (https://icons8.com/icon/muCPzbZuridA/geometric-figures), Object (https://icons8.com/icon/98120/sphere), and Canvas (https://icons8.com/icon/92317/flipboard) Icons from Icons8.............           \nSquare by Judanna from Flaticon (https://www.flaticon.com/free-icon/square-box_7151973).............         \nSquare by Freepik (https://www.flaticon.com/free-icon/bleach_481058).............    \nGroup by juicy_fish (https://www.flaticon.com/free-icon/group_7163554).............      \nboth Layers (https://www.flaticon.com/free-icon/layers_17406294) and Empty (https://www.flaticon.com/free-icon/frame_18384126) icons by meaicon............. chevron left (https://www.flaticon.com/free-icon/left-arrow_271220) and right (https://www.flaticon.com/free-icon/right-arrow_271228) by RoundIcons............. down chevron by fathema khanom (https://www.flaticon.com/free-icon/chevron_10009171)............. up chevron by Elite Art (https://www.flaticon.com/free-icon/up-chevron_14441425)........ the rest come from humble google fonts",true)
 })
@@ -1524,8 +1559,48 @@ function onClick(e,sh=false){
         const canvRect = canvas.getBoundingClientRect();
         let clientX = e.clientX-canvRect.left;
         let clientY = e.clientY-canvRect.top;
-        const frame = gui.interface.renderer.frames[gui.interface.frame]
+        const frame = gui.interface.renderer.frames[gui.interface.frame];
         let cam = frame[gui.interface.renderer.camera]?frame[gui.interface.renderer.camera]:{x:0,y:0};
+
+        if (gui.drawMode) {
+                if (!JANITOR) console.log("Drawing...");
+                const ctx = canvas.getContext("2d");
+                const drawing = new Path2D;
+                gui.interface.renderer.drawing = drawing;
+                drawing.moveTo(clientX-canvas.width/2,clientY-canvas.height/2);
+                function drawMode(draw) {
+                        let clientX = draw.clientX-canvRect.left;
+                        let clientY = draw.clientY-canvRect.top;
+                        if (!JANITOR) console.log("drawing point:",clientX,clientY);
+                        drawing.lineTo(clientX-canvas.width/2,clientY-canvas.height/2);
+                        drawing.moveTo(clientX-canvas.width/2,clientY-canvas.height/2);
+                        gui.render();
+                }
+                canvas.addEventListener("mousemove",drawMode)
+                canvas.addEventListener("mouseup",()=>{
+                        canvas.removeEventListener("mousemove",drawMode);
+                        drawing.closePath();
+                        if (!JANITOR) console.log("Drawn and closed path...");
+                        canvas.onmousemove = undefined;
+                        
+                        let shape = new DrawingShape(drawing);
+                        if (gui.getSelectedObject()) {
+                                gui.getSelectedObject().shapes.push(shape);
+                                gui.updateObjects();
+                                if (!JANITOR) console.log("Added drawing shape to selected...");
+                        } else {
+                                let name = "MyDrawing";
+                                while (frame[name]) name += "Copy";
+                                frame[name] = new Object_([shape],0,0);
+                                gui.updateObjects();
+                                gui.interface.renderer.drawing = null;
+                                if (!JANITOR) console.log("Added drawing object to frame...");
+                        }
+                        gui.render();
+                },{once:true});
+                return
+        }
+
         function selectShapes(obj,objX,objY) {
                 gui.selectedShape = -1;
                 for (let idx=obj.shapes.length-1;idx>=0;idx--) {
@@ -1556,7 +1631,7 @@ function onClick(e,sh=false){
         }
         return false
 };
-canvas.addEventListener("click",onClick)
+canvas.addEventListener("mousedown",onClick)
 canvas.addEventListener("dblclick",e=>{onClick(e,true)})
 canvas.addEventListener("contextmenu",e=>{
         e.preventDefault();
@@ -1606,6 +1681,8 @@ hierarchySection.appendChild(gui.objectsSection);
 hierarchySection.appendChild(gui.shapesSection);
 hierarchySection.appendChild(gui.selectedObjectSection);
 hierarchySection.appendChild(gui.selectedShapeSection);
+
+canvas.style.userSelect = "none";
 
 const initializeBody = ()=>{
         document.body.innerHTML = `<template id="dialog">
@@ -1657,6 +1734,6 @@ const initializeBody = ()=>{
 document.body.onload = initializeBody;
 window.addEventListener("resize",initializeBody);
 
-let JANITOR = true; // JANITOR prevents excessive debug logging
-const ver = "B6.1";
-document.title = `GoodForYou v${ver}, Group Nesting!`;
+let JANITOR = false; // JANITOR prevents excessive debug logging
+const ver = "B6.2";
+document.title = `GoodForYou v${ver}`;
